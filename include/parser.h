@@ -30,4 +30,6 @@ Expr *parser_be(Parser *parser);
 
 Stmt *parser_assignment(Parser *parser);
 Stmt *parser_funcall(Parser *parser);
+Stmt *parser_new(Parser *parser);
+
 #endif

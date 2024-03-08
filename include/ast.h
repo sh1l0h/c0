@@ -74,7 +74,10 @@ struct Stmt {
             Token *na;
             ArrayList *args;
         } funcall;
-        Token *new;
+        struct {
+            Expr *left;
+            Token *na;
+        } new;
         Expr *return_stmt;
     } as;
 };
@@ -93,7 +96,7 @@ Stmt *stmt_if(Expr *cond, ArrayList *then_block, ArrayList *else_block,
 Stmt *stmt_while(Expr *cond, ArrayList *block,
                  size_t start_column, size_t end_column);
 Stmt *stmt_funcall(Expr *left, Token *na, ArrayList *args, size_t end_column);
-Stmt *stmt_new(Token *type, size_t start_column, size_t end_column);
+Stmt *stmt_new(Expr *left, Token *na, size_t end_column);
 Stmt *stmt_return(Expr *expr, size_t start_column);
 
 void stmt_free(Stmt *stmt);

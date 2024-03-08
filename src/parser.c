@@ -558,3 +558,26 @@ Stmt *parser_funcall(Parser *parser)
 
     return stmt_funcall(left, na, args, right_paren->loc.column_end);
 }
+
+Stmt *parser_new(Parser *parser)
+{
+    Expr *left = parser_id(parser);
+    if (left == NULL)
+        return NULL;
+
+    if (parser_expect(parser, TT_EQUALS) == NULL)
+        return NULL;
+
+    if (parser_expect(parser, TT_NEW) == NULL)
+        return NULL;
+
+    Token *na = parser_expect(parser, TT_Na);
+    if (na == NULL)
+        return NULL;
+
+    Token *star = parser_expect(parser, TT_STAR);
+    if (star == NULL)
+        return NULL;
+
+    return stmt_new(left, na, star->loc.column_end);
+}

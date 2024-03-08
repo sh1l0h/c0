@@ -179,16 +179,17 @@ Stmt *stmt_funcall(Expr *left, Token *na, ArrayList *args, size_t end_column)
     return result;
 }
 
-Stmt *stmt_new(Token *type, size_t start_column, size_t end_column)
+Stmt *stmt_new(Expr *left, Token *na, size_t end_column)
 {
     Stmt *result = malloc(sizeof *result);
     result->type = ST_NEW;
-    result->as.new = type;
-    type->is_owned = true;
+    result->as.new.left = left;
+    result->as.new.na = na;
+    na->is_owned = true;
 
-    result->loc.line = type->loc.line;
-    result->loc.file_path = type->loc.file_path;
-    result->loc.column_start = start_column;
+    result->loc.line = left->loc.line;
+    result->loc.file_path = left->loc.file_path;
+    result->loc.column_start = left->loc.column_start;
     result->loc.column_end = end_column;
 
     return result;
