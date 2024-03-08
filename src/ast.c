@@ -207,3 +207,10 @@ Stmt *stmt_return(Expr *expr, size_t start_column)
 
     return result;
 }
+
+
+void stmt_free(Stmt *stmt)
+{
+    // TODO: implement this function
+    log_error("stmt_free unimplemented");
+}

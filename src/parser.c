@@ -475,9 +475,16 @@ Stmt *parser_assignment(Parser *parser)
     if (parser_expect(parser, TT_EQUALS) == NULL)
         return NULL;
 
-    Expr *right = parser_e(parser);
-    if (right == NULL)
-        return NULL;
+    size_t state = parser_state(parser);
+    Expr *right = parser_be(parser);
+    if (right == NULL) {
+        parser_set_state(parser, state);
+        parser_drop_state(parser, state);
+
+        right = parser_e(parser);
+    }
+    else
+        parser_drop_state(parser, state);
 
     return stmt_assign(left, right);
 }
