@@ -9,6 +9,7 @@ add_executable(${PROJECT_NAME}
     src/parser.c
     src/io/log.c    
     src/data_structures/cyclic_queue.c
+    src/data_structures/array_list.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -g)
