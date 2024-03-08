@@ -126,7 +126,6 @@ static void parser_drop_state(Parser *parser, size_t state)
 Expr *parser_id(Parser *parser)
 {
     Token *curr = parser_expect(parser, TT_Na);
-
     if (curr == NULL)
         return NULL;
 
@@ -206,12 +205,10 @@ Expr *parser_f(Parser *parser)
         {
             Location left_loc = curr->loc;
             result = parser_e(parser);
-            if (result == NULL) {
+            if (result == NULL)
                 return NULL;
-            }
 
             Token *r = parser_expect(parser, TT_RIGHT_PAREN);
-
             if (r == NULL) {
                 // TODO: ERROR
                 expr_free(result, !parser->is_tracking);
@@ -251,7 +248,6 @@ Expr *parser_f(Parser *parser)
 Expr *parser_t(Parser *parser)
 {
     Expr *e = parser_f(parser);
-
     if (e == NULL)
         return NULL;
 
@@ -278,7 +274,6 @@ Expr *parser_t(Parser *parser)
 Expr *parser_e(Parser *parser)
 {
     Expr *e = parser_t(parser);
-
     if (e == NULL)
         return NULL;
 
@@ -314,7 +309,6 @@ Expr *parser_atom(Parser *parser)
     parser_unget_token(parser);
 
     Expr *left_e = parser_e(parser);
-
     if (left_e == NULL)
         return NULL;
 
@@ -341,7 +335,6 @@ Expr *parser_atom(Parser *parser)
     Location loc = op->loc;
 
     Expr *right_e = parser_e(parser);
-
     if (right_e == NULL) {
         expr_free(left_e, !parser->is_tracking);
         parser_log_info(parser, &loc, "operator expects right operand.");
@@ -361,7 +354,6 @@ Expr *parser_bf(Parser *parser)
         {
             size_t column = curr->loc.column_start;
             Expr *bf = parser_bf(parser);
-
             if (bf == NULL)
                 return NULL;
 
@@ -413,7 +405,6 @@ Expr *parser_bf(Parser *parser)
 Expr *parser_bt(Parser *parser)
 {
     Expr *e = parser_bf(parser);
-
     if (e == NULL)
         return NULL;
 
@@ -423,7 +414,6 @@ Expr *parser_bt(Parser *parser)
         TokenType type = curr->type;
 
         Expr *f = parser_bf(parser);
-
         if (f == NULL) 
             return NULL;
 
@@ -440,7 +430,6 @@ Expr *parser_bt(Parser *parser)
 Expr *parser_be(Parser *parser)
 {
     Expr *e = parser_bt(parser);
-
     if (e == NULL)
         return NULL;
 
@@ -465,26 +454,107 @@ Expr *parser_be(Parser *parser)
     return e;
 }
 
+static Expr *parser_cc_be_e(Parser *parser)
+{
+    Token *curr = parser_get_token(parser);
+    if (curr->type == TT_CC)
+        return expr_token(curr);
+
+    parser_unget_token(parser);
+    size_t state = parser_state(parser);
+    Expr *result = parser_be(parser);
+    if (result != NULL) {
+        parser_drop_state(parser, state);
+        return result;
+    }
+
+    parser_set_state(parser, state);
+    parser_drop_state(parser, state);
+
+    return parser_e(parser);
+}
+
 Stmt *parser_assignment(Parser *parser)
 {
     Expr *left = parser_id(parser);
-
     if (left == NULL)
         return NULL;
 
     if (parser_expect(parser, TT_EQUALS) == NULL)
         return NULL;
 
-    size_t state = parser_state(parser);
-    Expr *right = parser_be(parser);
-    if (right == NULL) {
-        parser_set_state(parser, state);
-        parser_drop_state(parser, state);
-
-        right = parser_e(parser);
-    }
-    else
-        parser_drop_state(parser, state);
+    Expr *right = parser_cc_be_e(parser);
+    if (right == NULL) 
+        return NULL;
 
     return stmt_assign(left, right);
+}
+
+
+static ArrayList *parser_args(Parser *parser)
+{
+    ArrayList *result = malloc(sizeof *result);
+    array_list_create(result, sizeof(Expr *), 8);
+
+    Expr *e = parser_cc_be_e(parser);
+    if (e == NULL) {
+        array_list_destroy(result);
+        free(result);
+        return NULL;
+    }
+
+    array_list_append(result, &e);
+    
+    while (parser_get_token(parser)->type == TT_COMMA) {
+        e = parser_cc_be_e(parser);
+        if (e == NULL) {
+            for (size_t i = 0; i < result->size; i++) 
+                expr_free(*(Expr **)array_list_offset(result, i),
+                          !parser->is_tracking);
+
+            array_list_destroy(result);
+            free(result);
+            return NULL;
+        }
+
+        array_list_append(result, &e);
+    }
+
+    parser_unget_token(parser);
+    
+    return result;
+}
+
+Stmt *parser_funcall(Parser *parser)
+{
+    Expr *left = parser_id(parser);
+    if (left == NULL)
+        return NULL;
+
+    if (parser_expect(parser, TT_EQUALS) == NULL)
+        return NULL;
+
+    Token *na = parser_expect(parser, TT_Na);
+    if (na == NULL)
+        return NULL;
+
+    if (parser_expect(parser, TT_LEFT_PAREN) == NULL)
+        return NULL;
+
+    Token *right_paren = parser_get_token(parser);
+
+    if (right_paren->type == TT_RIGHT_PAREN) 
+        return stmt_funcall(left, na, NULL, right_paren->loc.column_end);
+
+    parser_unget_token(parser);
+
+    ArrayList *args = parser_args(parser);
+    if (args == NULL)
+        return NULL;
+
+    right_paren = parser_expect(parser, TT_RIGHT_PAREN);
+    if (right_paren == NULL)
+        return NULL;
+
+    return stmt_funcall(left, na, args, right_paren->loc.column_end);
 }

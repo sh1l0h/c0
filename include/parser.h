@@ -29,4 +29,5 @@ Expr *parser_bt(Parser *parser);
 Expr *parser_be(Parser *parser);
 
 Stmt *parser_assignment(Parser *parser);
+Stmt *parser_funcall(Parser *parser);
 #endif
