@@ -50,7 +50,9 @@ typedef enum TokenType {
     TT_IF,
     TT_RETURN,
     TT_TYPEDEF,
-    TT_WHILE
+    TT_WHILE,
+    TT_NEW
+    
 } TokenType;
 
 typedef union TokenValue {

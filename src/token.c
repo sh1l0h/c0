@@ -29,7 +29,7 @@ const char *token_type_strings[] = {
     "EOF", "name", "constant", "constant char", "boolean constant", "&", "!",
     "!=", "&&", "(", ")", "*", "+", ",", "-", ".", "/", ";", ">", ">=", "=",
     "==", "<", "<=", "[", "]", "{", "}", "||", "@", "char", "uint", "bool",
-    "struct", "else", "int", "if", "return", "typedef", "while"
+    "struct", "else", "int", "if", "return", "typedef", "while", "new"
 };
 
 const char *token_to_string(Token *t)
