@@ -107,7 +107,7 @@ static Token *lexer_word(Lexer *lexer, Location *loc)
         return result;
     }
 
-    for (int i = 0; i < KEYWORD_COUNT; i++) {
+    for (int i = 0; i < TT_KEYWORD_COUNT - TT_CHAR; i++) {
         if (!strcmp(lexeme, token_type_strings[TT_CHAR + i])) {
             free(lexeme);
             return token_alloc(TT_CHAR + i, loc);

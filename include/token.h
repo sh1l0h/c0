@@ -3,8 +3,6 @@
 
 #include "./utils.h"
 
-#define KEYWORD_COUNT 10
-
 // DO NOT CHANGE THE ORDER!
 typedef enum TokenType {
     TT_EOF = 0,
@@ -51,7 +49,8 @@ typedef enum TokenType {
     TT_RETURN,
     TT_TYPEDEF,
     TT_WHILE,
-    TT_NEW
+    TT_NEW,
+    TT_KEYWORD_COUNT
     
 } TokenType;
 
