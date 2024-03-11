@@ -291,7 +291,6 @@ Token *lexer_next(Lexer *lexer)
             result = token_alloc(TT_AT, &loc);
             break;
 
-
         default:
             log_error_with_loc(&loc, "unexpected character \"%c\".", curr);
             log_info("skipped the character and continuing...");
@@ -305,4 +304,3 @@ Token *lexer_next(Lexer *lexer)
 
     return result;
 }
-

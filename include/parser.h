@@ -5,7 +5,7 @@
 #include "./lexer.h"
 #include "./ast.h"
 
-#define PARSER_LOOK_AHEAD 1
+#define PARSER_LOOK_AHEAD 2
 
 typedef struct Parser {
     Lexer *lexer;
@@ -15,6 +15,11 @@ typedef struct Parser {
     size_t curr_token;
     CyclicQueue tokens;
 } Parser;
+
+typedef struct ParserState {
+    size_t start_index;
+    bool is_first;
+} ParserState;
 
 Parser *parser_alloc(Lexer *lexer);
 void parser_free(Parser *parser);
@@ -28,8 +33,6 @@ Expr *parser_bf(Parser *parser);
 Expr *parser_bt(Parser *parser);
 Expr *parser_be(Parser *parser);
 
-Stmt *parser_assignment(Parser *parser);
-Stmt *parser_funcall(Parser *parser);
-Stmt *parser_new(Parser *parser);
+Stmt *parser_stmt(Parser *parser);
 
 #endif
