@@ -13,9 +13,9 @@ static char *type_colors[] = {
 
 static char *clear_color = "\e[0m";
 
-void log_init()
+void log_init(bool no_colors)
 {
-    if (isatty(fileno(stderr)))
+    if (!no_colors && isatty(fileno(stderr)))
         return;
 
     clear_color = "";

@@ -29,7 +29,7 @@ typedef enum LogType {
     LOG_TYPE_COUNT // Always keep this as the last entry
 } LogType;
 
-void log_init();
+void log_init(bool no_colors);
 
 void log_print(LogType type, const char *format, ...);
 void log_print_with_location(LogType type, Location *location,
