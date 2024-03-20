@@ -114,7 +114,7 @@ static Token *lexer_word(Lexer *lexer, Location *loc)
         }
     }
 
-    return token_alloc_with_lexeme(TT_Na, loc, lexeme);
+    return token_alloc_with_lexeme(TT_NA, loc, lexeme);
 }
 
 static bool lexer_match(Lexer *lexer, const int c)
@@ -195,7 +195,8 @@ Token *lexer_next(Lexer *lexer)
                 loc.column_end++;
                 result = token_alloc(TT_NOT_EQUALS, &loc);
             }
-            result = token_alloc(TT_NOT, &loc);
+            else
+                result = token_alloc(TT_NOT, &loc);
             break;
 
         case '(':
