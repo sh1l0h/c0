@@ -5,7 +5,6 @@ Token *token_alloc(TokenType type, Location *loc_src)
     Token *result = calloc(1, sizeof *result);
     result->type = type;
     memcpy(&result->loc, loc_src, sizeof *loc_src);
-    result->is_owned = false;
     return result;
 }
 

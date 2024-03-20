@@ -7,7 +7,7 @@
 typedef enum TokenType {
     TT_EOF = 0,
 
-    TT_Na,
+    TT_NA,
 
     TT_C,
     TT_CC,
@@ -67,8 +67,6 @@ typedef struct Token {
 
     bool is_null;
     TokenValue value_as;
-
-    bool is_owned;
 } Token;
 
 extern const char *token_type_strings[];
