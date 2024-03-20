@@ -2,6 +2,9 @@
 
 int main(int argc, char **argv)
 {
+    (void) argc;
+    log_init(true);
+
     Lexer *lexer = lexer_alloc(argv[1]);
     Parser *parser = parser_alloc(lexer);
 
@@ -10,6 +13,7 @@ int main(int argc, char **argv)
 
     if (s != NULL) {
         log_info_with_loc(&s->loc, "");
+        stmt_free(s);
     }
 
     return 0;
