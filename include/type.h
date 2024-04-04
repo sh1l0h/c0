@@ -1,6 +1,8 @@
 #ifndef C0_TYPE_H
 #define C0_TYPE_H
 
+#include "./utils.h"
+
 typedef enum TypeOp {
     TO_INT = 0,
     TO_BOOL,

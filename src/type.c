@@ -5,15 +5,14 @@
 static struct Entry {
     Type *type;
     struct Entry *next;
-} *type_table[TYPE_TABLE_SIZE]
+} *type_table[TYPE_TABLE_SIZE];
 
 Type *type_int;
 Type *type_bool;
 Type *type_char;
 Type *type_uint;
 
-static size_t type_sizes_x86[5] = 
-{ 
+static size_t type_sizes_x86[5] = { 
     4, // int 
     1, // bool
     1, // char
@@ -37,14 +36,12 @@ static inline void type_table_add(size_t index, Type *type)
         _v->op = _t;                                            \
         _v->size = type_sizes[_t];                              \
         _v->align = type_sizes[_t];                             \
-        size_t index = ptr_hash(type) & (TYPE_TABLE_SIZE - 1);  \
-        type_table_add(index, _v)                               \
+        size_t index = ptr_hash(_v) & (TYPE_TABLE_SIZE - 1);    \
+        type_table_add(index, _v);                              \
     } while(0) 
 
 void type_init()
 {
-    type_table = calloc(TYPE_TABLE_SIZE, sizeof *type_table);
-
     // TODO: Change this for a specific architecture in runtime
     size_t *type_sizes = type_sizes_x86;
 
@@ -107,14 +104,14 @@ Type *type_struct(Field *fields, size_t fields_num)
 {
     Type *type = calloc(1, sizeof *type);
     type->op = TO_STRUCT;
-    type->cound = fields_num;
-    type->s.field = fields;
+    type->count = fields_num;
+    type->s.fields = fields;
 
     size_t index = 0;
     for (size_t i = 0; i < type->count; i++) {
         size_t name_hash = str_hash(type->s.fields[i].name);
         size_t type_hash = ptr_hash(type->s.fields[i].name);
-        index ^= (result + name_hash) * LARGE_ODD + (name_hash << 6) 
+        index ^= (index + name_hash) * LARGE_ODD + (name_hash << 6) 
             + (type_hash >> 2);
     }
     index &= TYPE_TABLE_SIZE - 1;
@@ -145,7 +142,7 @@ Type *type_struct(Field *fields, size_t fields_num)
         curr = curr->next;
     }
 
-    size_t max_field_align = 0;
+    size_t max_field_align = 1;
 
     size_t offset = 0;
     for (size_t i = 0; i < fields_num; i++) {
@@ -157,8 +154,8 @@ Type *type_struct(Field *fields, size_t fields_num)
         fields[i].offset = offset;
         offset += fields[i].type->size;
 
-        if (feilds[i].type->align > max_field_align)
-            max_field_align = field[i].type->align;
+        if (fields[i].type->align > max_field_align)
+            max_field_align = fields[i].type->align;
     }
 
     size_t mod = offset % max_field_align;
@@ -182,7 +179,7 @@ Type *type_function(Type *return_type, Type **args, size_t args_size)
     
     size_t index = ptr_hash(type->child);
     for (size_t i = 0; i < type->count; i++)
-        index ^= result * LARGE_ODD + ptr_hash(type->s.args[i]);
+        index ^= index * LARGE_ODD + ptr_hash(type->s.args[i]);
     index &= TYPE_TABLE_SIZE - 1;
     
     struct Entry *curr = type_table[index];
@@ -196,7 +193,7 @@ Type *type_function(Type *return_type, Type **args, size_t args_size)
             bool equals = true; 
 
             for (size_t i = 0; i < args_size; i++) {
-                if (curr_args[i] != curr_args[i]) {
+                if (curr_args[i] != args[i]) {
                     equals = false;
                     break;
                 }

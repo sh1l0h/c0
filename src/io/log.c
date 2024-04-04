@@ -83,12 +83,8 @@ void log_print_with_location(LogType type, Location *location,
 
     fputc('|', stderr);
 
-    for (size_t i = 0; i < location->column_start - 1; i++) {
-        if (line[i] == '\t')
-            fputc('\t', stderr);
-        else
-            fputc(' ', stderr);
-    }
+    for (size_t i = 0; i < location->column_start - 1; i++) 
+        fputc(line[i] == '\t' ? '\t' : ' ', stderr);
 
     fputs(type_colors[type], stderr);
 
