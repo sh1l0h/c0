@@ -10,6 +10,7 @@
 
 #include "./io/log.h"
 
-char *get_base_name(char *path);
+size_t str_hash(char *str);
+size_t ptr_hash(void *ptr);
 
 #endif
