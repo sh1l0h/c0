@@ -9,10 +9,8 @@ typedef enum TypeOp {
     TO_CHAR,
     TO_UINT,
     TO_POINTER,
-
     TO_ARRAY,
-    TO_STRUCT,
-    TO_FUNCTION
+    TO_STRUCT
 } TypeOp;
 
 typedef struct Type Type;
@@ -25,16 +23,17 @@ struct Field {
 };
 
 struct Type {
-    TypeOp op;
+    char *name;
     Type *child;
     size_t size;
     size_t align;
+    TypeOp op;
+    bool is_defined;
 
-    size_t count; // Fields count for structs and args count for functions
-    union { 
-        Field *fields;
-        Type **args;  
-    } s;
+    size_t fields_count;
+    Field *fields;
+
+    Type *next;
 };
 
 extern Type *type_int;
@@ -45,9 +44,11 @@ extern Type *type_uint;
 void type_init();
 void type_deinit();
 
-Type *type_pointer(Type *child);
-Type *type_array(Type *child, size_t elements);
-Type *type_struct(Field *fields, size_t fields_num);
-Type *type_function(Type *return_type, Type **args, size_t args_count);
+Type *type_add(char *name);
+Type *type_get(char *name);
+
+Type *type_pointer(char *name, Type *child);
+Type *type_array(char *name, Type *child, size_t elements);
+Type *type_struct(char *name, Field *fields, size_t fields_count);
 
 #endif

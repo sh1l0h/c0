@@ -1,18 +1,15 @@
 #include "../include/type.h"
 
-#define TYPE_TABLE_SIZE 256 // Always power of 2
+#define TYPE_TABLE_SIZE 128 // Always power of 2
 
-static struct Entry {
-    Type *type;
-    struct Entry *next;
-} *type_table[TYPE_TABLE_SIZE];
+static Type *type_table[TYPE_TABLE_SIZE] = {NULL};
 
 Type *type_int;
 Type *type_bool;
 Type *type_char;
 Type *type_uint;
 
-static size_t type_sizes_x86[5] = { 
+static const size_t type_sizes_x86[5] = { 
     4, // int 
     1, // bool
     1, // char
@@ -20,35 +17,49 @@ static size_t type_sizes_x86[5] = {
     4  // pointer
 };
 
-#define LARGE_ODD 0x517cc1b727220a95
+static const size_t *type_sizes = NULL;
 
-static inline void type_table_add(size_t index, Type *type)
+static inline Type *type_table_add(Type *type)
 {
-    struct Entry *new = malloc(sizeof *new);
-    new->type = type;
-    new->next = type_table[index];
-    type_table[index] = new;
+    size_t index = str_hash(type->name) & (TYPE_TABLE_SIZE - 1); 
+
+    Type *t = type_get(type->name);
+    if (t == NULL) {
+        type->next = type_table[index];
+        type_table[index] = type;
+
+        return type;
+    }
+
+    if (t->is_defined)
+        return NULL;
+
+    free(t->name);
+    *t = *type;
+    free(type);
+    return t;
 }
 
-#define TYPE_PRIM_INIT(_v, _t)                                  \
-    do {                                                        \
-        _v = calloc(1, sizeof *_v);                             \
-        _v->op = _t;                                            \
-        _v->size = type_sizes[_t];                              \
-        _v->align = type_sizes[_t];                             \
-        size_t index = ptr_hash(_v) & (TYPE_TABLE_SIZE - 1);    \
-        type_table_add(index, _v);                              \
+#define TYPE_PRIM_INIT(_v, _n, _t)      \
+    do {                                \
+        (_v) = calloc(1, sizeof *(_v)); \
+        (_v)->name = (_n);              \
+        (_v)->op = (_t);                \
+        (_v)->size = type_sizes[(_t)];  \
+        (_v)->align = type_sizes[(_t)]; \
+        (_v)->is_defined = true;        \
+        type_table_add((_v));           \
     } while(0) 
 
 void type_init()
 {
     // TODO: Change this for a specific architecture in runtime
-    size_t *type_sizes = type_sizes_x86;
+    type_sizes = type_sizes_x86;
 
-    TYPE_PRIM_INIT(type_int, TO_INT);
-    TYPE_PRIM_INIT(type_bool, TO_BOOL);
-    TYPE_PRIM_INIT(type_char, TO_CHAR);
-    TYPE_PRIM_INIT(type_uint, TO_UINT);
+    TYPE_PRIM_INIT(type_int, "int", TO_INT);
+    TYPE_PRIM_INIT(type_bool, "bool", TO_BOOL);
+    TYPE_PRIM_INIT(type_char, "char", TO_CHAR);
+    TYPE_PRIM_INIT(type_uint, "uint", TO_UINT);
 }
 
 void type_deinit()
@@ -57,95 +68,64 @@ void type_deinit()
     log_error("type_deinit not implemented!");
 }
 
-static Type *type_get(const TypeOp op, Type *child, size_t size, size_t align)
+Type *type_add(char *name)
 {
     Type *type = calloc(1, sizeof *type);
-    type->op = op;
+    type->name = name;
+
+    return type_table_add(type);
+}
+
+Type *type_get(char *name)
+{
+    size_t index = str_hash(name) & (TYPE_TABLE_SIZE - 1); 
+    for (Type *curr = type_table[index]; curr != NULL; curr = curr->next) {
+        if (!strcmp(curr->name, name))
+            return curr;
+    }
+
+    return NULL;
+}
+
+Type *type_pointer(char *name, Type *child)
+{
+    Type *type = calloc(1, sizeof *type);
+    type->name = name;
     type->child = child;
-    type->size = size;
-    type->align = align;
+    type->op = TO_POINTER;
+    type->size = type_sizes[TO_POINTER];
+    type->align = type_sizes[TO_POINTER];
+    type->is_defined = true;
 
-    size_t index = (type->op * LARGE_ODD ^ ptr_hash(type->child)) & 
-        (TYPE_TABLE_SIZE - 1);
-
-    struct Entry *curr = type_table[index];
-    while (curr != NULL) {
-        Type *curr_type = curr->type;
-
-        if (curr_type->op == op && curr_type->child == child) {
-            free(type);
-            return curr_type;
-        }
-
-        curr = curr->next;
-    }
-
-    type_table_add(index, type);
-    return type;
+    return type_table_add(type);
 }
 
-Type *type_pointer(Type *child)
-{
-    // TODO: Change this for a specific architecture in runtime
-    size_t *type_sizes = type_sizes_x86;
-
-    return type_get(TO_POINTER, 
-                    child, 
-                    type_sizes[TO_POINTER], 
-                    type_sizes[TO_POINTER]);
-}
-
-Type *type_array(Type *child, size_t elements)
-{
-    return type_get(TO_ARRAY, child, elements * child->size, child->align);
-}
-
-Type *type_struct(Field *fields, size_t fields_num)
+Type *type_array(char *name, Type *child, size_t elements)
 {
     Type *type = calloc(1, sizeof *type);
+    type->name = name;
+    type->child = child;
+    type->op = TO_ARRAY;
+    type->size = child->size * elements;
+    type->align = child->align;
+    type->is_defined = true;
+
+    return type_table_add(type);
+}
+
+Type *type_struct(char *name, Field *fields, size_t fields_count)
+{
+    Type *type = calloc(1, sizeof *type);
+    type->name = name;
     type->op = TO_STRUCT;
-    type->count = fields_num;
-    type->s.fields = fields;
-
-    size_t index = 0;
-    for (size_t i = 0; i < type->count; i++) {
-        size_t name_hash = str_hash(type->s.fields[i].name);
-        size_t type_hash = ptr_hash(type->s.fields[i].name);
-        index ^= (index + name_hash) * LARGE_ODD + (name_hash << 6) 
-            + (type_hash >> 2);
-    }
-    index &= TYPE_TABLE_SIZE - 1;
-
-    struct Entry *curr = type_table[index];
-    while (curr != NULL) {
-        Type *curr_type = curr->type;
-
-        if (curr_type->op == TO_STRUCT && curr_type->count == fields_num) {
-            Field *curr_fields = curr_type->s.fields;
-            bool equals = true; 
-
-            for (size_t i = 0; i < fields_num; i++) {
-                if ((strcmp(curr_fields[i].name, fields[i].name) != 0 ||
-                     curr_fields[i].type != fields[i].type)) {
-                    equals = false;
-                    break;
-                }
-            }
-
-            if (equals) {
-                free(type);
-                free(fields);
-                return curr_type;
-            }
-        }
-
-        curr = curr->next;
-    }
+    type->is_defined = true;
+    type->fields = fields;
+    type->fields_count = fields_count;
 
     size_t max_field_align = 1;
 
     size_t offset = 0;
-    for (size_t i = 0; i < fields_num; i++) {
+    for (size_t i = 0; i < fields_count; i++) {
         size_t mod = offset % fields[i].type->align;
 
         if (mod != 0) 
@@ -160,55 +140,10 @@ Type *type_struct(Field *fields, size_t fields_num)
 
     size_t mod = offset % max_field_align;
     if (mod != 0) 
-        offset += offset - mod;
+        offset += max_field_align - mod;
 
     type->size = offset;
     type->align = max_field_align;
-    type_table_add(index, type);
-    return type;
-}
 
-Type *type_function(Type *return_type, Type **args, size_t args_size)
-{
-    Type *type = malloc(sizeof *type);      
-    type->op = TO_FUNCTION;
-    type->child = return_type;
-    type->size = type->align = 0;
-    type->count = args_size;
-    type->s.args = args;
-    
-    size_t index = ptr_hash(type->child);
-    for (size_t i = 0; i < type->count; i++)
-        index ^= index * LARGE_ODD + ptr_hash(type->s.args[i]);
-    index &= TYPE_TABLE_SIZE - 1;
-    
-    struct Entry *curr = type_table[index];
-    while (curr != NULL) {
-        Type *curr_type = curr->type;
-
-        if ((curr_type->op == TO_FUNCTION && 
-             curr_type->count == args_size &&
-             curr_type->child == return_type)) {
-            Type **curr_args = type->s.args;
-            bool equals = true; 
-
-            for (size_t i = 0; i < args_size; i++) {
-                if (curr_args[i] != args[i]) {
-                    equals = false;
-                    break;
-                }
-            }
-
-            if (equals) {
-                free(type);
-                free(args);
-                return curr_type;
-            }
-        }
-
-        curr = curr->next;
-    }
-
-    type_table_add(index, type);
-    return type;
+    return type_table_add(type);
 }
