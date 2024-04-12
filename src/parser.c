@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include "../include/parser.h"
+#include "../include/symbol_table.h"
 
 #define parser_log_info(parser, ...)                    \
     if (!parser->is_tracking)                           \
@@ -133,9 +134,8 @@ static TokenType parser_panic(Parser *parser, size_t types_count, ...)
 
     va_end(args);
 
-    Token *curr;
     while (true) {
-        curr = parser_get_token(parser);
+        Token *curr = parser_get_token(parser);
 
         for (size_t i = 0; i < types_count; i++){
             if (curr->type == types[i])
@@ -724,7 +724,6 @@ Stmt *parser_stmt(Parser *parser)
 
             Token *paren = parser_get_token(parser);
             if (next->type == TT_NA && paren->type == TT_LEFT_PAREN) {
-
                 Token *right_paren = parser_get_token(parser);
                 if (right_paren->type == TT_RIGHT_PAREN) 
                     return stmt_funcall(id, next, NULL, right_paren->loc.column_end);
@@ -751,5 +750,231 @@ Stmt *parser_stmt(Parser *parser)
 
             return stmt_assign(id, right);
         }
+        break;
     }
+}
+
+Type *parser_ty(Parser *parser, bool should_exist)
+{
+    Token *curr = parser_get_token(parser);
+    
+    switch (curr->type) {
+    case TT_INT:
+    case TT_UINT:
+    case TT_CHAR:
+    case TT_BOOL:
+    case TT_NA:
+        {
+            Type *type = type_get(curr->lexeme);
+            if (type != NULL) 
+                return type;
+
+            if (should_exist) {
+                parser_log_error(parser, &curr->loc, "unkown type: %s", 
+                                 token_to_string(curr));
+                return NULL;
+            }
+
+            return type_add(str_dup(curr->lexeme));
+        }
+
+    default:
+        parser_log_error(parser, &curr->loc, "expected type but got: %s", 
+                         token_to_string(curr));
+        return NULL;
+    }
+}
+
+static Field *parser_fields(Parser *parser, size_t *fields_count)
+{
+    *fields_count = 0;
+    size_t allocated_fields = 4;
+    Field *fields = malloc(allocated_fields * sizeof *fields);
+
+    Token *semicolon = NULL;
+    do {
+        Type *type = parser_ty(parser, true);
+        if (type == NULL) {
+            free(fields);
+            return NULL;
+        }
+
+        Token *name = parser_expect(parser, TT_NA);
+        if (name == NULL) {
+            free(fields);
+            return NULL;
+        }
+
+        fields[*fields_count].type = type;
+        fields[*fields_count].name = str_dup(name->lexeme);
+
+        *fields_count += 1; 
+        if (*fields_count >= allocated_fields) {
+            allocated_fields *= 2;
+            Field *tmp = realloc(fields, allocated_fields * sizeof *tmp);
+            if (tmp != NULL)
+                fields = tmp;
+            else
+                return NULL; // TODO: add error
+        }
+        semicolon = parser_get_token(parser);
+    } while(semicolon->type == TT_SEMICOLON);
+    parser_unget_token(parser);
+
+    return fields;
+}
+
+bool parser_tyd(Parser *parser)
+{
+    Token *struct_token = parser_get_token(parser);
+    if (struct_token->type == TT_STRUCT) {
+        if (parser_expect(parser, TT_LEFT_BRACE) == NULL)
+            return false;
+
+        size_t fields_count = 0;
+        Field *fields = parser_fields(parser, &fields_count);
+        if (fields == NULL)
+            return false;
+
+        if (parser_expect(parser, TT_RIGHT_BRACE) == NULL)
+            return false;
+
+        Token *name = parser_expect(parser, TT_NA);
+        if (name == NULL) 
+            return false;
+
+        if (type_struct(str_dup(name->lexeme), fields, fields_count) == NULL) {
+            parser_log_error(parser, &name->loc, 
+                             "type with name %s already exists", 
+                             name->lexeme); 
+            return false;    
+        }
+
+        return true;
+    }
+
+    parser_unget_token(parser);
+
+    Type *type = parser_ty(parser, false);
+    if (type == NULL)
+        return false;
+
+    Token *op = parser_get_token(parser);
+    switch (op->type) {
+
+    case TT_LEFT_BRACKET:
+        {
+            Token *dig = parser_expect(parser, TT_C);
+            if (dig == NULL)
+                return false;
+
+            if (dig->is_null) {
+                parser_log_error(parser, &dig->loc, 
+                                 "expected digit but got: %s", 
+                                 token_to_string(dig));
+                return false;
+            }
+
+            size_t elements = dig->value_as.integer;
+
+            if (parser_expect(parser, TT_RIGHT_BRACKET) == NULL)
+                return false;
+
+            Token *name = parser_expect(parser, TT_NA);
+            if (name == NULL) 
+                return false;
+
+            if (!type->is_defined) {
+                parser_log_error(parser, &name->loc, 
+                                 "only pointers can predifined types");
+                return false;
+            }
+
+            if (type_array(str_dup(name->lexeme), type, elements) == NULL) {
+                parser_log_error(parser, &name->loc, 
+                                 "type with name %s already exists", 
+                                 name->lexeme); 
+                return false;    
+            }
+
+            return true;
+        }
+
+    case TT_STAR:
+        {
+            Token *name = parser_expect(parser, TT_NA);
+            if (name == NULL) 
+                return false;
+
+            if (type_pointer(str_dup(name->lexeme), type) == NULL) {
+                parser_log_error(parser, &name->loc, 
+                                 "type with name %s already exists", 
+                                 name->lexeme); 
+                return false;    
+            }
+
+            return true;
+        }
+
+    default:
+        parser_log_error(parser, &op->loc, "unexpected %s", 
+                         token_to_string(op)); 
+        return false;
+    }
+}
+
+bool parser_tyds(Parser *parser)
+{
+    bool first = true;
+
+    Token *tydef = parser_get_token(parser);
+    while (tydef->type == TT_TYPEDEF) {
+
+        if (!parser_tyd(parser))
+            return false;
+
+        Token *semicolon = parser_get_token(parser);
+        if (semicolon->type != TT_SEMICOLON) {
+            parser_unget_token(parser);
+            return true;
+        }
+
+        tydef = parser_get_token(parser);
+        first = false;
+    }
+
+    if (!first)
+        parser_unget_token(parser); 
+
+    parser_unget_token(parser);
+    return true;
+}
+
+bool parser_global_vad(Parser *parser)
+{
+    Type *type = parser_ty(parser, true);
+    if (type == NULL) 
+        return false;
+
+    Token *name = parser_expect(parser, TT_NA);
+    if (name == NULL)
+        return false;
+
+
+    Symbol *sym = symtable_get(global_syms, name->lexeme);
+    if (sym != NULL) {
+        parser_log_error(parser, 
+                         &name->loc, 
+                         "variable with name %s already exists", 
+                         name->lexeme);
+        parser_log_info(parser, 
+                        &sym->loc, 
+                        "%s previously defined here",
+                        name->lexeme);
+        return false;
+    }
+
+    sym = symbol_create(str_dup(name->lexeme), type, SS_GLOBAL, &name->loc);
+    symtable_add(global_syms, sym);
+    return true;
 }

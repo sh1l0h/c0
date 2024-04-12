@@ -4,6 +4,7 @@
 #include "./data_structures/cyclic_queue.h"
 #include "./lexer.h"
 #include "./ast.h"
+#include "./type.h"
 
 #define PARSER_LOOK_AHEAD 2
 
@@ -34,5 +35,11 @@ Expr *parser_bt(Parser *parser);
 Expr *parser_be(Parser *parser);
 
 Stmt *parser_stmt(Parser *parser);
+
+Type *parser_ty(Parser *parser, bool should_exist);
+bool parser_tyd(Parser *parser);
+bool parser_tyds(Parser *parser);
+
+bool parser_global_vad(Parser *parser);
 
 #endif

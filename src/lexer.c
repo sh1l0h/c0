@@ -39,8 +39,13 @@ static Token *lexer_num(Lexer *lexer, Location *loc)
         lexer->column++;
         lexeme[lexeme_len++] = curr;
 
-        if (lexeme_len == allocated_chars)
-            lexeme = realloc(lexeme, (allocated_chars *= 2) * sizeof *lexeme);
+        if (lexeme_len == allocated_chars) {
+            char *tmp = realloc(lexeme, (allocated_chars *= 2) * sizeof *lexeme);
+            if (tmp != NULL)
+                lexeme = tmp;
+            else
+                return NULL;
+        }
     }
 
     if (curr == 'u') {
@@ -77,8 +82,13 @@ static Token *lexer_word(Lexer *lexer, Location *loc)
         lexer->column++;
         lexeme[lexeme_len++] = curr;
 
-        if (lexeme_len == allocated_chars)
-            lexeme = realloc(lexeme, (allocated_chars *= 2) * sizeof *lexeme);
+        if (lexeme_len == allocated_chars) {
+            char *tmp = realloc(lexeme, (allocated_chars *= 2) * sizeof *lexeme);
+            if (tmp != NULL)
+                lexeme = tmp;
+            else
+                return NULL;
+        }
     }
 
     ungetc(curr, lexer->input_stream);
@@ -109,8 +119,7 @@ static Token *lexer_word(Lexer *lexer, Location *loc)
 
     for (int i = 0; i < TT_KEYWORD_COUNT - TT_CHAR; i++) {
         if (!strcmp(lexeme, token_type_strings[TT_CHAR + i])) {
-            free(lexeme);
-            return token_alloc(TT_CHAR + i, loc);
+            return token_alloc_with_lexeme(TT_CHAR + i, loc, lexeme);
         }
     }
 
@@ -134,7 +143,6 @@ static bool lexer_match(Lexer *lexer, const int c)
 Token *lexer_next(Lexer *lexer)
 {
     bool quit;
-    int curr;
     Location loc;
     Token *result;
     size_t last_column = 0;
@@ -144,7 +152,7 @@ Token *lexer_next(Lexer *lexer)
     do {
         quit = true;
 
-        curr = getc(lexer->input_stream);
+        int curr = getc(lexer->input_stream);
 
         loc.column_start = loc.column_end = lexer->column;
         loc.line = lexer->line;
