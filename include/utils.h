@@ -12,5 +12,6 @@
 
 size_t str_hash(char *str);
 size_t ptr_hash(void *ptr);
+char *str_dup(char *str);
 
 #endif

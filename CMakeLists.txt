@@ -10,6 +10,9 @@ add_executable(${PROJECT_NAME}
     src/io/log.c    
     src/data_structures/cyclic_queue.c
     src/data_structures/array_list.c
+    src/type.c
+    src/symbol_table.c
+    src/utils.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -g)
