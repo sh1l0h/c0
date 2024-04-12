@@ -84,7 +84,7 @@ struct Stmt {
         struct {
             Expr *left;
             char *na;
-        } new;
+        } new_stmt;
         Expr *return_stmt;
     } as;
 };

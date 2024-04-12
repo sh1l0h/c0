@@ -1,3 +1,4 @@
+#include <string.h>
 #include "../include/ast.h"
 
 static Expr *expr_alloc(ExprType type)
@@ -40,7 +41,7 @@ Expr *expr_access(Token *na, Expr *left)
 {
     Expr *result = expr_alloc(ET_ACCESS);
     result->as.access.left = left;
-    result->as.access.na = strdup(na->lexeme);
+    result->as.access.na = str_dup(na->lexeme);
 
     result->loc.file_path = left->loc.file_path;
     result->loc.line = left->loc.line;
@@ -101,7 +102,7 @@ Expr *expr_null(Token *c)
 Expr *expr_na(Token *na)
 {
     Expr *result = expr_alloc(ET_NA);
-    result->as.na = strdup(na->lexeme);
+    result->as.na = str_dup(na->lexeme);
     result->loc = na->loc;
 
     return result;
@@ -135,6 +136,7 @@ void expr_free(Expr *e)
         break;
 
     default:
+        break;
     }
 
     free(e);
@@ -193,7 +195,7 @@ Stmt *stmt_funcall(Expr *left, Token *na, ArrayList *args, size_t end_column)
     Stmt *result = malloc(sizeof *result);
     result->type = ST_FUNCALL;
     result->as.funcall.left = left;
-    result->as.funcall.na = strdup(na->lexeme);
+    result->as.funcall.na = str_dup(na->lexeme);
     result->as.funcall.args = args;
 
     result->loc.line = left->loc.line;
@@ -208,8 +210,8 @@ Stmt *stmt_new(Expr *left, Token *na, size_t end_column)
 {
     Stmt *result = malloc(sizeof *result);
     result->type = ST_NEW;
-    result->as.new.left = left;
-    result->as.new.na = strdup(na->lexeme);
+    result->as.new_stmt.left = left;
+    result->as.new_stmt.na = str_dup(na->lexeme);
 
     result->loc.line = left->loc.line;
     result->loc.file_path = left->loc.file_path;
@@ -288,8 +290,8 @@ void stmt_free(Stmt *stmt)
         break;
 
     case ST_NEW:
-        expr_free(stmt->as.new.left);
-        free(stmt->as.new.na);
+        expr_free(stmt->as.new_stmt.left);
+        free(stmt->as.new_stmt.na);
         break;
 
     case ST_RETURN:
