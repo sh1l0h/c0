@@ -6,7 +6,7 @@
 #include "./ast.h"
 #include "./type.h"
 
-#define PARSER_LOOK_AHEAD 2
+#define PARSER_LOOK_AHEAD 3
 
 typedef struct Parser {
     Lexer *lexer;
@@ -41,5 +41,7 @@ bool parser_tyd(Parser *parser);
 bool parser_tyds(Parser *parser);
 
 bool parser_global_vad(Parser *parser);
+
+Function *parser_fud(Parser *parser);
 
 #endif

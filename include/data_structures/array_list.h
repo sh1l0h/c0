@@ -12,7 +12,7 @@ typedef struct ArrayList {
 } ArrayList;
 
 void array_list_create(ArrayList *list, size_t element_size, size_t initial_size);
-void array_list_destroy(ArrayList *list);
+void array_list_destroy(ArrayList *list, void (*free_element)(void *));
 
 void array_list_set(ArrayList *list, size_t index, const void *element);
 

@@ -58,7 +58,6 @@ static Token *parser_get_token(Parser *parser)
         cyclic_queue_dequeue(&parser->tokens, NULL);
         parser->curr_token--;
     }
-    
 
     return result;
 }
@@ -153,9 +152,9 @@ Expr *parser_id(Parser *parser)
     if (curr == NULL)
         return NULL;
 
+    bool quit = false;
     Expr *e = expr_na(curr);
-
-    while (true) {
+    while (!quit) {
         curr = parser_get_token(parser);
 
         switch (curr->type) {
@@ -163,12 +162,16 @@ Expr *parser_id(Parser *parser)
         case TT_LEFT_BRACKET:
             {
                 Expr *index = parser_e(parser);
-                if (index == NULL)
+                if (index == NULL) {
+                    expr_free(e);
                     return NULL;
+                }
 
                 Token *r_bracket = parser_expect(parser, TT_RIGHT_BRACKET);
-                if (r_bracket == NULL) 
+                if (r_bracket == NULL) {
+                    expr_free(e);
                     return NULL;
+                }
 
                 e = expr_arr_access(e, index, r_bracket->loc.column_end);
             }
@@ -192,12 +195,11 @@ Expr *parser_id(Parser *parser)
             break;
 
         default:
-            goto while_end;
+            quit = true;
+            break;
         }
 
     }
-
-while_end:
     parser_unget_token(parser);
 
     return e;
@@ -206,8 +208,6 @@ while_end:
 Expr *parser_f(Parser *parser)
 {
     Token *curr = parser_get_token(parser);
-
-    Expr *result;
 
     switch (curr->type) {
 
@@ -218,14 +218,13 @@ Expr *parser_f(Parser *parser)
             if (f == NULL)
                 return NULL;
 
-            result = expr_unary(TT_MINUS, f, column, true);
+            return expr_unary(TT_MINUS, f, column, true);
         }
-        break;
 
     case TT_LEFT_PAREN:
         {
             Location left_loc = curr->loc;
-            result = parser_e(parser);
+            Expr *result = parser_e(parser);
             if (result == NULL)
                 return NULL;
 
@@ -240,19 +239,15 @@ Expr *parser_f(Parser *parser)
 
             result->loc.column_start = left_loc.column_start;
             result->loc.column_end = r->loc.column_end;
+            return result;
         }
-        break;
 
     case TT_C:
-        result = expr_c(curr);
-        break;
+        return expr_c(curr);
 
     case TT_NA:
-        {
-            parser_unget_token(parser);
-            result = parser_id(parser);
-        }
-        break;
+        parser_unget_token(parser);
+        return parser_id(parser);
 
     default:
         parser_unget_token(parser);
@@ -261,8 +256,6 @@ Expr *parser_f(Parser *parser)
                          token_to_string(curr));
         return NULL;
     }
-
-    return result;
 }
 
 Expr *parser_t(Parser *parser)
@@ -272,18 +265,17 @@ Expr *parser_t(Parser *parser)
         return NULL;
 
     Token *curr = parser_get_token(parser);
-
     while ((curr->type == TT_STAR ||
             curr->type == TT_SLASH)) {
         TokenType type = curr->type;
 
         Expr *f = parser_f(parser);
-
-        if (f == NULL) 
+        if (f == NULL) {
+            expr_free(e);
             return NULL;
+        }
 
         e = expr_binary(type, e, f);
-
         curr = parser_get_token(parser);
     }
     parser_unget_token(parser);
@@ -298,21 +290,19 @@ Expr *parser_e(Parser *parser)
         return NULL;
 
     Token *curr = parser_get_token(parser);
-
-    while ((curr->type ==  TT_PLUS ||
+    while ((curr->type == TT_PLUS ||
             curr->type == TT_MINUS)) {
-
         TokenType type = curr->type;
 
         Expr *t = parser_t(parser);
-        if (t == NULL) 
+        if (t == NULL) {
+            expr_free(e);
             return NULL;
+        }
 
         e = expr_binary(type, e, t);
-
         curr = parser_get_token(parser);
     }
-
     parser_unget_token(parser);
 
     return e;
@@ -321,7 +311,6 @@ Expr *parser_e(Parser *parser)
 Expr *parser_atom(Parser *parser)
 {
     Token *token = parser_get_token(parser);
-
     if (token->type == TT_BC) 
         return expr_bc(token);
 
@@ -367,8 +356,6 @@ Expr *parser_bf(Parser *parser)
     Token *curr = parser_get_token(parser);
 
     switch (curr->type) {
-    case TT_BC:
-        return expr_bc(curr);
 
     case TT_NOT:
         {
@@ -399,11 +386,13 @@ Expr *parser_bf(Parser *parser)
             Location left_loc = curr->loc;
 
             Expr *be = parser_be(parser);
-            if (be == NULL)
+            if (be == NULL) {
+                expr_free(e);
                 return NULL;
+            }
 
-            curr = parser_get_token(parser);
-            if (curr->type != TT_RIGHT_PAREN) {
+            if (parser_expect(parser, TT_RIGHT_PAREN) == NULL) {
+                expr_free(e);
                 expr_free(be);
                 parser_log_info(parser,
                                 &left_loc,
@@ -413,14 +402,12 @@ Expr *parser_bf(Parser *parser)
 
             be->loc.column_start = left_loc.column_start;
             be->loc.column_end = curr->loc.column_start;
-
             return be;
         }
 
     case TT_NA:
         {
             parser_unget_token(parser);
-
             ParserState *state = parser_state(parser);
 
             Expr *id = parser_id(parser);
@@ -445,8 +432,6 @@ Expr *parser_bf(Parser *parser)
                 parser_unget_token(parser);
                 return id;
             }
-
-            return parser_id(parser);
         }
 
     default:
@@ -462,16 +447,16 @@ Expr *parser_bt(Parser *parser)
         return NULL;
 
     Token *curr = parser_get_token(parser);
-
     while (curr->type == TT_LOGICAL_AND) {
         TokenType type = curr->type;
 
         Expr *f = parser_bf(parser);
-        if (f == NULL) 
+        if (f == NULL) {
+            expr_free(e);
             return NULL;
+        }
 
         e = expr_binary(type, e, f);
-
         curr = parser_get_token(parser);
     }
 
@@ -487,18 +472,16 @@ Expr *parser_be(Parser *parser)
         return NULL;
 
     Token *curr = parser_get_token(parser);
-
     while (curr->type == TT_LOGICAL_OR) {
-
         TokenType type = curr->type;
 
         Expr *t = parser_bt(parser);
-
-        if (t == NULL)
+        if (t == NULL) {
+            expr_free(e);
             return NULL;
+        }
 
         e = expr_binary(type, e, t);
-
         curr = parser_get_token(parser);
     }
 
@@ -547,28 +530,16 @@ static ArrayList *parser_args(Parser *parser)
     ArrayList *result = malloc(sizeof *result);
     array_list_create(result, sizeof(Expr *), 8);
 
-    Expr *e = parser_cc_be_e(parser);
-    if (e == NULL) {
-        array_list_destroy(result);
-        free(result);
-        return NULL;
-    }
-
-    array_list_append(result, &e);
-
-    while (parser_get_token(parser)->type == TT_COMMA) {
-        e = parser_cc_be_e(parser);
+    do {
+        Expr *e = parser_cc_be_e(parser);
         if (e == NULL) {
-            for (size_t i = 0; i < result->size; i++) 
-                expr_free(*(Expr **)array_list_offset(result, i));
-
-            array_list_destroy(result);
+            array_list_destroy(result, stmt_free_wrapper);
             free(result);
             return NULL;
         }
 
         array_list_append(result, &e);
-    }
+    } while (parser_get_token(parser)->type == TT_COMMA);
 
     parser_unget_token(parser);
 
@@ -580,41 +551,26 @@ static ArrayList *parser_stmts(Parser *parser)
     ArrayList *result = malloc(sizeof *result);
     array_list_create(result, sizeof(Expr *), 8);
 
-    Stmt *s = parser_stmt(parser);
-    if (s == NULL) {
-        TokenType t = parser_panic(parser, 2, TT_SEMICOLON, TT_RIGHT_BRACE);
+    do {
+        Token *t = parser_get_token(parser);
         parser_unget_token(parser);
+        if (t->type == TT_RETURN)
+            break;
 
-        if (t != TT_SEMICOLON) {
-            array_list_destroy(result);
-            free(result);
-            return NULL;
-        }
-    }
-    else 
-        array_list_append(result, &s);
-
-    Token *curr = parser_get_token(parser);
-    while (curr->type == TT_SEMICOLON) {
-        s = parser_stmt(parser);
+        Stmt *s = parser_stmt(parser);
         if (s == NULL) {
             TokenType t = parser_panic(parser, 2, TT_SEMICOLON, TT_RIGHT_BRACE);
             if (t == TT_SEMICOLON)
                 continue;
 
             parser_unget_token(parser);
-            for (size_t i = 0; i < result->size; i++) 
-                stmt_free(*(Stmt **)array_list_offset(result, i));
-
-            array_list_destroy(result);
+            array_list_destroy(result, stmt_free_wrapper);
             free(result);
             return NULL;
         }
-        else 
-            array_list_append(result, &s);
 
-        curr = parser_get_token(parser);
-    }
+        array_list_append(result, &s);
+    } while (parser_get_token(parser)->type == TT_SEMICOLON);
 
     parser_unget_token(parser);
 
@@ -635,17 +591,22 @@ Stmt *parser_stmt(Parser *parser)
                 return NULL;
 
             Token *l_brace = parser_expect(parser, TT_LEFT_BRACE);
-            if (l_brace == NULL)
+            if (l_brace == NULL) {
+                expr_free(be);
                 return NULL;
-
+            }
             Location l_brace_loc = l_brace->loc;
 
             ArrayList *then_stmts = parser_stmts(parser);
-            if (then_stmts == NULL)
+            if (then_stmts == NULL) {
+                expr_free(be);
                 return NULL;
+            }
 
             if (parser_expect(parser, TT_RIGHT_BRACE) == NULL) {
                 parser_log_info(parser, &l_brace_loc, "left brace is here:");
+                expr_free(be);
+                array_list_destroy(then_stmts, stmt_free_wrapper);
                 return NULL;
             }
 
@@ -656,17 +617,25 @@ Stmt *parser_stmt(Parser *parser)
             }
 
             Token *else_brace = parser_expect(parser, TT_LEFT_BRACE);
-            if (else_brace == NULL)
+            if (else_brace == NULL) {
+                expr_free(be);
+                array_list_destroy(then_stmts, stmt_free_wrapper);
                 return NULL;
-
+            }
             Location else_brace_loc = else_brace->loc;
 
             ArrayList *else_stmts = parser_stmts(parser);
-            if (else_stmts == NULL)
+            if (else_stmts == NULL) {
+                expr_free(be);
+                array_list_destroy(then_stmts, stmt_free_wrapper);
                 return NULL;
+            }
 
             if (parser_expect(parser, TT_RIGHT_BRACE) == NULL) {
                 parser_log_info(parser, &else_brace_loc, "left brace is here:");
+                expr_free(be);
+                array_list_destroy(then_stmts, stmt_free_wrapper);
+                array_list_destroy(else_stmts, stmt_free_wrapper);
                 return NULL;
             }
 
@@ -681,17 +650,23 @@ Stmt *parser_stmt(Parser *parser)
                 return NULL;
 
             Token *l_brace = parser_expect(parser, TT_LEFT_BRACE);
-            if (l_brace == NULL)
+            if (l_brace == NULL) {
+                expr_free(be);
                 return NULL;
+            }
 
             Location l_brace_loc = l_brace->loc;
 
             ArrayList *stmts = parser_stmts(parser);
-            if (stmts == NULL)
+            if (stmts == NULL) {
+                expr_free(be);
                 return NULL;
+            }
 
             if (parser_expect(parser, TT_RIGHT_BRACE) == NULL) {
                 parser_log_info(parser, &l_brace_loc, "left brace is here:");
+                expr_free(be);
+                array_list_destroy(stmts, stmt_free_wrapper);
                 return NULL;
             }
 
@@ -705,19 +680,24 @@ Stmt *parser_stmt(Parser *parser)
             if (id == NULL)
                 return NULL;
 
-            if (parser_expect(parser, TT_EQUALS) == NULL)
+            if (parser_expect(parser, TT_EQUALS) == NULL) {
+                expr_free(id);
                 return NULL;
+            }
 
             Token *next = parser_get_token(parser);
-
             if (next->type == TT_NEW) {
                 Token *na = parser_expect(parser, TT_NA);
-                if (na == NULL)
+                if (na == NULL) {
+                    expr_free(id);
                     return NULL;
+                }
 
                 Token *star = parser_expect(parser, TT_STAR);
-                if (star == NULL)
+                if (star == NULL) {
+                    expr_free(id);
                     return NULL;
+                }
 
                 return stmt_new(id, na, star->loc.column_end);
             }
@@ -731,12 +711,16 @@ Stmt *parser_stmt(Parser *parser)
                 parser_unget_token(parser);
 
                 ArrayList *args = parser_args(parser);
-                if (args == NULL)
+                if (args == NULL) {
+                    expr_free(id);
                     return NULL;
+                }
 
                 right_paren = parser_expect(parser, TT_RIGHT_PAREN);
-                if (right_paren == NULL)
+                if (right_paren == NULL) {
+                    expr_free(id);
                     return NULL;
+                }
 
                 return stmt_funcall(id, next, args, right_paren->loc.column_end);
             }
@@ -745,19 +729,20 @@ Stmt *parser_stmt(Parser *parser)
             parser_unget_token(parser);
 
             Expr *right = parser_cc_be_e(parser);
-            if (right == NULL) 
+            if (right == NULL) {
+                expr_free(id);
                 return NULL;
+            }
 
             return stmt_assign(id, right);
         }
-        break;
     }
 }
 
 Type *parser_ty(Parser *parser, bool should_exist)
 {
     Token *curr = parser_get_token(parser);
-    
+
     switch (curr->type) {
     case TT_INT:
     case TT_UINT:
@@ -812,10 +797,9 @@ static Field *parser_fields(Parser *parser, size_t *fields_count)
         if (*fields_count >= allocated_fields) {
             allocated_fields *= 2;
             Field *tmp = realloc(fields, allocated_fields * sizeof *tmp);
-            if (tmp != NULL)
-                fields = tmp;
-            else
-                return NULL; // TODO: add error
+            if (tmp == NULL)
+                return NULL;
+            fields = tmp;
         }
         semicolon = parser_get_token(parser);
     } while(semicolon->type == TT_SEMICOLON);
@@ -929,7 +913,6 @@ bool parser_tyds(Parser *parser)
 
     Token *tydef = parser_get_token(parser);
     while (tydef->type == TT_TYPEDEF) {
-
         if (!parser_tyd(parser))
             return false;
 
@@ -977,4 +960,136 @@ bool parser_global_vad(Parser *parser)
     sym = symbol_create(str_dup(name->lexeme), type, SS_GLOBAL, &name->loc);
     symtable_add(global_syms, sym);
     return true;
+}
+
+static bool parser_is_type(Token *na)
+{
+    switch (na->type) {
+        case TT_BOOL:
+        case TT_INT:
+        case TT_CHAR:
+        case TT_UINT:
+            return true;
+
+        case TT_NA:
+            return type_get(na->lexeme) != NULL;
+
+        default:
+            return false;
+    }
+}
+
+static int parser_local_vads(Parser *parser, SymTable *local)
+{
+    int count = 0;
+    do {
+        Token *type = parser_get_token(parser);
+        Token *name = parser_get_token(parser);
+
+        if (name->type != TT_NA) {
+            parser_unget_token(parser);
+            parser_unget_token(parser);
+            break;
+        }
+
+        if (!parser_is_type(type)) {
+            parser_log_error(parser,
+                             &type->loc,
+                             "unknown type: %s",
+                             token_to_string(type));
+            return -1;
+        }
+
+        count += 1;
+
+        Symbol *new = symbol_create(str_dup(name->lexeme), 
+                                    type_get(type->lexeme),
+                                    SS_LOCAL,
+                                    &name->loc); 
+
+        symtable_add(local, new);
+
+    } while (parser_get_token(parser)->type == TT_SEMICOLON);
+    
+    parser_unget_token(parser);
+    
+    return count;
+}
+
+Function *parser_fud(Parser *parser)
+{
+    Type *return_type = parser_ty(parser, true);
+    if (return_type == NULL)
+        return NULL;
+
+    Token *name_token = parser_expect(parser, TT_NA);
+    if (name_token == NULL)
+        return NULL;
+
+    char *name = str_dup(name_token->lexeme);
+
+    if (parser_expect(parser, TT_LEFT_PAREN) == NULL) 
+        goto clean_name;
+
+    SymTable *local = symtable_create(global_syms);
+
+    Token *token = parser_get_token(parser);
+    switch (token->type) {
+    case TT_RIGHT_PAREN:
+        break;
+
+    default:
+        break;
+    } 
+
+    if (parser_expect(parser, TT_LEFT_BRACE) == NULL) 
+        goto clean_symtable;
+
+    int local_vads_result = parser_local_vads(parser, local);
+    if (local_vads_result == -1 ||
+        (local_vads_result > 0 && parser_expect(parser, TT_SEMICOLON)))
+        goto clean_symtable;
+
+    Token *t = parser_get_token(parser);
+    parser_unget_token(parser);
+
+    ArrayList *stmts = NULL;
+    if (t->type != TT_RETURN) {
+        stmts = parser_stmts(parser);
+        if (parser_expect(parser, TT_SEMICOLON) == NULL) 
+            goto clean_symtable;
+    }
+
+    t = parser_expect(parser, TT_RETURN);
+    if (t == NULL) 
+        goto clean_stmts;
+
+    size_t start_column = t->loc.column_start;
+
+    Expr *e = parser_cc_be_e(parser);
+    if (e == NULL)
+        goto clean_stmts;
+
+    Stmt *return_stmt = stmt_return(e, start_column);
+
+    if (parser_expect(parser, TT_RIGHT_BRACE) == NULL)
+        goto clean_all;
+
+    return function_create(name, local, stmts, return_stmt);
+
+clean_all:
+    stmt_free(return_stmt);
+    expr_free(e);
+
+clean_stmts:
+    if (stmts != NULL)
+        array_list_destroy(stmts, stmt_free_wrapper);
+
+clean_symtable:
+    symtable_destroy(local);
+
+clean_name:
+    free(name);
+
+    return NULL;
 }

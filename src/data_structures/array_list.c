@@ -8,8 +8,13 @@ void array_list_create(ArrayList *list, size_t element_size, size_t initial_size
     list->size = 0;
 }
 
-void array_list_destroy(ArrayList *list)
+void array_list_destroy(ArrayList *list, void (*free_element)(void *))
 {
+    if (free_element != NULL) {
+        for (size_t i = 0; i < list->size; i++) 
+            free_element(array_list_offset(list, i));
+    }
+
     free(list->data);
 }
 

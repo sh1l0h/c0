@@ -3,6 +3,7 @@
 
 #include "./token.h"
 #include "./data_structures/array_list.h"
+#include "symbol_table.h"
 
 typedef enum ExprType {
     ET_BINARY,
@@ -89,6 +90,13 @@ struct Stmt {
     } as;
 };
 
+typedef struct Function {
+    char *name;
+    SymTable *table;
+    ArrayList *stmts;
+    Stmt *return_stmt;
+} Function;
+
 Expr *expr_binary(TokenType op, Expr *left, Expr *right);
 Expr *expr_unary(TokenType op, Expr *e, size_t column, bool is_prefix);
 Expr *expr_access(Token *na, Expr *left);
@@ -100,6 +108,7 @@ Expr *expr_null(Token *c);
 Expr *expr_na(Token *na);
 
 void expr_free(Expr *e);
+void expr_free_wrapper(void *e);
 
 Stmt *stmt_assign(Expr *left, Expr *right);
 Stmt *stmt_if(Expr *cond, ArrayList *then_block, 
@@ -110,5 +119,9 @@ Stmt *stmt_new(Expr *left, Token *na, size_t end_column);
 Stmt *stmt_return(Expr *expr, size_t start_column);
 
 void stmt_free(Stmt *stmt);
+void stmt_free_wrapper(void *stmt);
+
+Function *function_create(char *name, SymTable *table, ArrayList *stmts, Stmt *return_stmt);
+void function_free(Function *fun);
 
 #endif

@@ -41,10 +41,9 @@ static Token *lexer_num(Lexer *lexer, Location *loc)
 
         if (lexeme_len == allocated_chars) {
             char *tmp = realloc(lexeme, (allocated_chars *= 2) * sizeof *lexeme);
-            if (tmp != NULL)
-                lexeme = tmp;
-            else
+            if (tmp == NULL)
                 return NULL;
+            lexeme = tmp;
         }
     }
 
@@ -84,10 +83,9 @@ static Token *lexer_word(Lexer *lexer, Location *loc)
 
         if (lexeme_len == allocated_chars) {
             char *tmp = realloc(lexeme, (allocated_chars *= 2) * sizeof *lexeme);
-            if (tmp != NULL)
-                lexeme = tmp;
-            else
+            if (tmp == NULL)
                 return NULL;
+            lexeme = tmp;
         }
     }
 

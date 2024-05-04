@@ -142,6 +142,11 @@ void expr_free(Expr *e)
     free(e);
 }
 
+void expr_free_wrapper(void *e)
+{
+    expr_free(e);
+}
+
 Stmt *stmt_assign(Expr *left, Expr *right)
 {
     Stmt *result = malloc(sizeof *result);
@@ -249,18 +254,14 @@ void stmt_free(Stmt *stmt)
             expr_free(stmt->as.if_stmt.cond);
 
             ArrayList *then_block = stmt->as.if_stmt.then_block;
-            for (size_t i = 0; i < then_block->size; i++) 
-                stmt_free(*(Stmt **) array_list_offset(then_block, i));
-            array_list_destroy(then_block);
+            array_list_destroy(then_block, stmt_free_wrapper);
             free(then_block);
 
             ArrayList *else_block = stmt->as.if_stmt.else_block;
             if (else_block == NULL)
                 break;
 
-            for (size_t i = 0; i < else_block->size; i++) 
-                stmt_free(*(Stmt **) array_list_offset(else_block, i));
-            array_list_destroy(else_block);
+            array_list_destroy(else_block, stmt_free_wrapper);
             free(else_block);
         }
         break;
@@ -270,9 +271,7 @@ void stmt_free(Stmt *stmt)
             expr_free(stmt->as.while_stmt.cond);
 
             ArrayList *block = stmt->as.while_stmt.block;
-            for (size_t i = 0; i < block->size; i++) 
-                stmt_free(*(Stmt **) array_list_offset(block, i));
-            array_list_destroy(block);
+            array_list_destroy(block, stmt_free_wrapper);
             free(block);
         }
         break;
@@ -283,9 +282,7 @@ void stmt_free(Stmt *stmt)
             free(stmt->as.funcall.na);
 
             ArrayList *args = stmt->as.funcall.args;
-            for (size_t i = 0; i < args->size; i++) 
-                expr_free(*(Expr **) array_list_offset(args, i));
-            array_list_destroy(args);
+            array_list_destroy(args, expr_free_wrapper);
         }
         break;
 
@@ -299,4 +296,28 @@ void stmt_free(Stmt *stmt)
         break;
     }
     free(stmt);
+}
+
+void stmt_free_wrapper(void *stmt)
+{
+    stmt_free(stmt); 
+}
+
+Function *function_create(char *name, SymTable *table, 
+                          ArrayList *stmts, Stmt *return_stmt)
+{
+    Function *result = malloc(sizeof *result);
+    result->name = name;
+    result->table = table;
+    result->stmts = stmts;
+    result->return_stmt = return_stmt;
+    return result;
+}
+
+void function_free(Function *fun)
+{
+    free(fun->name);
+    symtable_destroy(fun->table);
+
+    stmt_free(fun->return_stmt);
 }

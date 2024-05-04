@@ -31,7 +31,6 @@ struct SymTable {
 
 extern SymTable *global_syms;
 
-
 Symbol *symbol_create(char *name, Type *type, SymScope scope, Location *loc_src);
 
 void symtable_init();
