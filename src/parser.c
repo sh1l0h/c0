@@ -986,7 +986,10 @@ static int parser_local_vads(Parser *parser, SymTable *local)
         Token *type = parser_get_token(parser);
         Token *name = parser_get_token(parser);
 
-        if (name->type != TT_NA) {
+        if (type->type == TT_RETURN || 
+            type->type == TT_IF || 
+            type->type == TT_WHILE || 
+            name->type != TT_NA) {
             parser_unget_token(parser);
             parser_unget_token(parser);
             break;
@@ -1001,17 +1004,16 @@ static int parser_local_vads(Parser *parser, SymTable *local)
         }
 
         count += 1;
-
         Symbol *new = symbol_create(str_dup(name->lexeme), 
                                     type_get(type->lexeme),
                                     SS_LOCAL,
                                     &name->loc); 
-
         symtable_add(local, new);
 
     } while (parser_get_token(parser)->type == TT_SEMICOLON);
     
-    parser_unget_token(parser);
+    if (count > 0)
+        parser_unget_token(parser);
     
     return count;
 }
@@ -1047,7 +1049,7 @@ Function *parser_fud(Parser *parser)
 
     int local_vads_result = parser_local_vads(parser, local);
     if (local_vads_result == -1 ||
-        (local_vads_result > 0 && parser_expect(parser, TT_SEMICOLON)))
+        (local_vads_result > 0 && parser_expect(parser, TT_SEMICOLON) == NULL))
         goto clean_symtable;
 
     Token *t = parser_get_token(parser);
