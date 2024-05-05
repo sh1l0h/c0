@@ -2,7 +2,6 @@
 #define C0_AST_H
 
 #include "./token.h"
-#include "./data_structures/array_list.h"
 #include "symbol_table.h"
 
 typedef enum ExprType {
@@ -71,16 +70,16 @@ struct Stmt {
         } assign;
         struct {
             Expr *cond;
-            ArrayList *then_block, *else_block;
+            Stmt **then_block, **else_block;
         } if_stmt;
         struct {
             Expr *cond;
-            ArrayList *block;
+            Stmt **block;
         } while_stmt;
         struct {
             Expr *left;
             char *na;
-            ArrayList *args;
+            Expr **args;
         } funcall;
         struct {
             Expr *left;
@@ -93,7 +92,7 @@ struct Stmt {
 typedef struct Function {
     char *name;
     SymTable *table;
-    ArrayList *stmts;
+    Stmt **stmts;
     Stmt *return_stmt;
 } Function;
 
@@ -107,21 +106,22 @@ Expr *expr_cc(Token *cc);
 Expr *expr_null(Token *c);
 Expr *expr_na(Token *na);
 
+void exprs_free(Expr **exprs);
 void expr_free(Expr *e);
-void expr_free_wrapper(void *e);
 
 Stmt *stmt_assign(Expr *left, Expr *right);
-Stmt *stmt_if(Expr *cond, ArrayList *then_block, 
-              ArrayList *else_block, size_t start_column);
-Stmt *stmt_while(Expr *cond, ArrayList *block, size_t start_column);
-Stmt *stmt_funcall(Expr *left, Token *na, ArrayList *args, size_t end_column);
+Stmt *stmt_if(Expr *cond, Stmt **then_block, 
+              Stmt **else_block, size_t start_column);
+Stmt *stmt_while(Expr *cond, Stmt **block, size_t start_column);
+Stmt *stmt_funcall(Expr *left, Token *na, Expr **args, size_t end_column);
 Stmt *stmt_new(Expr *left, Token *na, size_t end_column);
 Stmt *stmt_return(Expr *expr, size_t start_column);
 
+void stmts_free(Stmt **stmts);
 void stmt_free(Stmt *stmt);
-void stmt_free_wrapper(void *stmt);
 
-Function *function_create(char *name, SymTable *table, ArrayList *stmts, Stmt *return_stmt);
+Function *function_create(char *name, SymTable *table, 
+                          Stmt **stmts, Stmt *return_stmt);
 void function_free(Function *fun);
 
 #endif

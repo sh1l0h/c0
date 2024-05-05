@@ -9,7 +9,6 @@ add_executable(${PROJECT_NAME}
     src/parser.c
     src/io/log.c    
     src/data_structures/cyclic_queue.c
-    src/data_structures/array_list.c
     src/type.c
     src/symbol_table.c
     src/utils.c

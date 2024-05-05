@@ -56,16 +56,26 @@ void type_init()
     // TODO: Change this for a specific architecture in runtime
     type_sizes = type_sizes_x86;
 
-    TYPE_PRIM_INIT(type_int, "int", TO_INT);
-    TYPE_PRIM_INIT(type_bool, "bool", TO_BOOL);
-    TYPE_PRIM_INIT(type_char, "char", TO_CHAR);
-    TYPE_PRIM_INIT(type_uint, "uint", TO_UINT);
+    TYPE_PRIM_INIT(type_int, str_dup("int"), TO_INT);
+    TYPE_PRIM_INIT(type_bool, str_dup("bool"), TO_BOOL);
+    TYPE_PRIM_INIT(type_char, str_dup("char"), TO_CHAR);
+    TYPE_PRIM_INIT(type_uint, str_dup("uint"), TO_UINT);
 }
 
 void type_deinit()
 {
-    // TODO: implement this function
-    log_error("type_deinit not implemented!");
+    for (size_t i = 0; i < TYPE_TABLE_SIZE; i++) {
+        Type *curr = type_table[i];
+        while (curr != NULL) {
+            Type *next = curr->next; 
+            free(curr->name);
+            for (size_t j = 0; j < curr->fields_count; j++) 
+                free(curr->fields[j].name);
+            free(curr);
+
+            curr = next;
+        }
+    }
 }
 
 Type *type_add(char *name)

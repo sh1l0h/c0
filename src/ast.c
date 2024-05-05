@@ -108,6 +108,14 @@ Expr *expr_na(Token *na)
     return result;
 }
 
+void exprs_free(Expr **exprs)
+{
+    for (size_t i = 0; exprs[i] != NULL; i++) 
+        expr_free(exprs[i]);
+
+    free(exprs);
+}
+
 void expr_free(Expr *e)
 {
     switch (e->type) {
@@ -162,8 +170,8 @@ Stmt *stmt_assign(Expr *left, Expr *right)
     return result;
 }
 
-Stmt *stmt_if(Expr *cond, ArrayList *then_block, ArrayList *else_block,
-              size_t start_column)
+Stmt *stmt_if(Expr *cond, Stmt **then_block, 
+              Stmt **else_block, size_t start_column)
 {
     Stmt *result = malloc(sizeof *result);
     result->type = ST_IF;
@@ -179,8 +187,7 @@ Stmt *stmt_if(Expr *cond, ArrayList *then_block, ArrayList *else_block,
     return result;
 }
 
-Stmt *stmt_while(Expr *cond, ArrayList *block,
-                 size_t start_column)
+Stmt *stmt_while(Expr *cond, Stmt **block, size_t start_column)
 {
     Stmt *result = malloc(sizeof *result);
     result->type = ST_WHILE;
@@ -195,7 +202,7 @@ Stmt *stmt_while(Expr *cond, ArrayList *block,
     return result;
 }
 
-Stmt *stmt_funcall(Expr *left, Token *na, ArrayList *args, size_t end_column)
+Stmt *stmt_funcall(Expr *left, Token *na, Expr **args, size_t end_column)
 {
     Stmt *result = malloc(sizeof *result);
     result->type = ST_FUNCALL;
@@ -240,6 +247,14 @@ Stmt *stmt_return(Expr *expr, size_t start_column)
     return result;
 }
 
+void stmts_free(Stmt **stmts)
+{
+    for (size_t i = 0; stmts[i] != NULL; i++)
+        stmt_free(stmts[i]);
+
+    free(stmts);
+}
+
 void stmt_free(Stmt *stmt)
 {
     switch (stmt->type) {
@@ -253,37 +268,25 @@ void stmt_free(Stmt *stmt)
         {
             expr_free(stmt->as.if_stmt.cond);
 
-            ArrayList *then_block = stmt->as.if_stmt.then_block;
-            array_list_destroy(then_block, stmt_free_wrapper);
-            free(then_block);
+            stmts_free(stmt->as.if_stmt.then_block);
 
-            ArrayList *else_block = stmt->as.if_stmt.else_block;
+            Stmt **else_block = stmt->as.if_stmt.else_block;
             if (else_block == NULL)
                 break;
-
-            array_list_destroy(else_block, stmt_free_wrapper);
-            free(else_block);
+            
+            stmts_free(else_block);
         }
         break;
 
     case ST_WHILE:
-        {
-            expr_free(stmt->as.while_stmt.cond);
-
-            ArrayList *block = stmt->as.while_stmt.block;
-            array_list_destroy(block, stmt_free_wrapper);
-            free(block);
-        }
+        expr_free(stmt->as.while_stmt.cond);
+        stmts_free(stmt->as.while_stmt.block);
         break;
 
     case ST_FUNCALL:
-        {
-            expr_free(stmt->as.funcall.left); 
-            free(stmt->as.funcall.na);
-
-            ArrayList *args = stmt->as.funcall.args;
-            array_list_destroy(args, expr_free_wrapper);
-        }
+        expr_free(stmt->as.funcall.left); 
+        free(stmt->as.funcall.na);
+        exprs_free(stmt->as.funcall.args);
         break;
 
     case ST_NEW:
@@ -304,7 +307,7 @@ void stmt_free_wrapper(void *stmt)
 }
 
 Function *function_create(char *name, SymTable *table, 
-                          ArrayList *stmts, Stmt *return_stmt)
+                          Stmt **stmts, Stmt *return_stmt)
 {
     Function *result = malloc(sizeof *result);
     result->name = name;
@@ -318,6 +321,8 @@ void function_free(Function *fun)
 {
     free(fun->name);
     symtable_destroy(fun->table);
-
+    if (fun->stmts != NULL)
+        stmts_free(fun->stmts);
     stmt_free(fun->return_stmt);
+    free(fun);
 }

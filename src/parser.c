@@ -525,31 +525,40 @@ static Expr *parser_cc_be_e(Parser *parser)
     return parser_be(parser);
 }
 
-static ArrayList *parser_args(Parser *parser)
+static Expr **parser_args(Parser *parser)
 {
-    ArrayList *result = malloc(sizeof *result);
-    array_list_create(result, sizeof(Expr *), 8);
+    size_t allocated = 8;
+    size_t size = 0;
+    Expr **result = malloc(allocated * sizeof *result);
 
     do {
         Expr *e = parser_cc_be_e(parser);
         if (e == NULL) {
-            array_list_destroy(result, stmt_free_wrapper);
-            free(result);
+            exprs_free(result);
             return NULL;
         }
 
-        array_list_append(result, &e);
-    } while (parser_get_token(parser)->type == TT_COMMA);
+        result[size] = e;
+        result[++size] = NULL;
 
+        if (size < allocated - 1)
+            continue;
+
+        allocated *= 2;
+        result = realloc(result, allocated * sizeof *result);
+
+    } while (parser_get_token(parser)->type == TT_COMMA);
     parser_unget_token(parser);
 
+    result = realloc(result, (size + 1) * sizeof *result);
     return result;
 }
 
-static ArrayList *parser_stmts(Parser *parser)
+static Stmt **parser_stmts(Parser *parser)
 {
-    ArrayList *result = malloc(sizeof *result);
-    array_list_create(result, sizeof(Expr *), 8);
+    size_t allocated = 8;
+    size_t size = 0;
+    Stmt **result = malloc(allocated * sizeof *result);
 
     do {
         Token *t = parser_get_token(parser);
@@ -564,16 +573,22 @@ static ArrayList *parser_stmts(Parser *parser)
                 continue;
 
             parser_unget_token(parser);
-            array_list_destroy(result, stmt_free_wrapper);
-            free(result);
+            stmts_free(result);
             return NULL;
         }
 
-        array_list_append(result, &s);
-    } while (parser_get_token(parser)->type == TT_SEMICOLON);
+        result[size] = s;
+        result[++size] = NULL;
 
+        if (size < allocated - 1)
+            continue;
+
+        allocated *= 2;
+        result = realloc(result, allocated * sizeof *result);
+    } while (parser_get_token(parser)->type == TT_SEMICOLON);
     parser_unget_token(parser);
 
+    result = realloc(result, (size + 1) * sizeof *result);
     return result;
 }
 
@@ -597,7 +612,7 @@ Stmt *parser_stmt(Parser *parser)
             }
             Location l_brace_loc = l_brace->loc;
 
-            ArrayList *then_stmts = parser_stmts(parser);
+            Stmt **then_stmts = parser_stmts(parser);
             if (then_stmts == NULL) {
                 expr_free(be);
                 return NULL;
@@ -606,7 +621,7 @@ Stmt *parser_stmt(Parser *parser)
             if (parser_expect(parser, TT_RIGHT_BRACE) == NULL) {
                 parser_log_info(parser, &l_brace_loc, "left brace is here:");
                 expr_free(be);
-                array_list_destroy(then_stmts, stmt_free_wrapper);
+                stmts_free(then_stmts);
                 return NULL;
             }
 
@@ -619,23 +634,23 @@ Stmt *parser_stmt(Parser *parser)
             Token *else_brace = parser_expect(parser, TT_LEFT_BRACE);
             if (else_brace == NULL) {
                 expr_free(be);
-                array_list_destroy(then_stmts, stmt_free_wrapper);
+                stmts_free(then_stmts);
                 return NULL;
             }
             Location else_brace_loc = else_brace->loc;
 
-            ArrayList *else_stmts = parser_stmts(parser);
+            Stmt **else_stmts = parser_stmts(parser);
             if (else_stmts == NULL) {
                 expr_free(be);
-                array_list_destroy(then_stmts, stmt_free_wrapper);
+                stmts_free(then_stmts);
                 return NULL;
             }
 
             if (parser_expect(parser, TT_RIGHT_BRACE) == NULL) {
                 parser_log_info(parser, &else_brace_loc, "left brace is here:");
                 expr_free(be);
-                array_list_destroy(then_stmts, stmt_free_wrapper);
-                array_list_destroy(else_stmts, stmt_free_wrapper);
+                stmts_free(then_stmts);
+                stmts_free(else_stmts);
                 return NULL;
             }
 
@@ -657,7 +672,7 @@ Stmt *parser_stmt(Parser *parser)
 
             Location l_brace_loc = l_brace->loc;
 
-            ArrayList *stmts = parser_stmts(parser);
+            Stmt **stmts = parser_stmts(parser);
             if (stmts == NULL) {
                 expr_free(be);
                 return NULL;
@@ -666,7 +681,7 @@ Stmt *parser_stmt(Parser *parser)
             if (parser_expect(parser, TT_RIGHT_BRACE) == NULL) {
                 parser_log_info(parser, &l_brace_loc, "left brace is here:");
                 expr_free(be);
-                array_list_destroy(stmts, stmt_free_wrapper);
+                stmts_free(stmts); 
                 return NULL;
             }
 
@@ -710,7 +725,7 @@ Stmt *parser_stmt(Parser *parser)
 
                 parser_unget_token(parser);
 
-                ArrayList *args = parser_args(parser);
+                Expr **args = parser_args(parser);
                 if (args == NULL) {
                     expr_free(id);
                     return NULL;
@@ -719,6 +734,7 @@ Stmt *parser_stmt(Parser *parser)
                 right_paren = parser_expect(parser, TT_RIGHT_PAREN);
                 if (right_paren == NULL) {
                     expr_free(id);
+                    exprs_free(args);
                     return NULL;
                 }
 
@@ -1055,7 +1071,7 @@ Function *parser_fud(Parser *parser)
     Token *t = parser_get_token(parser);
     parser_unget_token(parser);
 
-    ArrayList *stmts = NULL;
+    Stmt **stmts = NULL;
     if (t->type != TT_RETURN) {
         stmts = parser_stmts(parser);
         if (parser_expect(parser, TT_SEMICOLON) == NULL) 
@@ -1081,11 +1097,10 @@ Function *parser_fud(Parser *parser)
 
 clean_all:
     stmt_free(return_stmt);
-    expr_free(e);
 
 clean_stmts:
     if (stmts != NULL)
-        array_list_destroy(stmts, stmt_free_wrapper);
+        stmts_free(stmts); 
 
 clean_symtable:
     symtable_destroy(local);

@@ -15,9 +15,13 @@ int main(int argc, char **argv)
     Parser *parser = parser_alloc(lexer);
 
     Function *f = parser_fud(parser);
-    parser_free(parser);
 
+    if (f != NULL)
+        function_free(f);
+
+    parser_free(parser);
     symtable_deinit();
+    type_deinit();
 
     return 0;
 }
