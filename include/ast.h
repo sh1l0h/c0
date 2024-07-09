@@ -91,6 +91,10 @@ struct Stmt {
 
 typedef struct Function {
     char *name;
+    Type *return_type;
+    Type **arg_types;
+    size_t arg_count;
+
     SymTable *table;
     Stmt **stmts;
     Stmt *return_stmt;
@@ -120,8 +124,10 @@ Stmt *stmt_return(Expr *expr, size_t start_column);
 void stmts_free(Stmt **stmts);
 void stmt_free(Stmt *stmt);
 
-Function *function_create(char *name, SymTable *table, 
-                          Stmt **stmts, Stmt *return_stmt);
+Function *function_create(char *name, Type **arg_types, 
+                          size_t arg_count, SymTable *table, 
+                          Stmt **stmts, Type *return_type, 
+                          Stmt *return_stmt);
 void function_free(Function *fun);
 
 #endif

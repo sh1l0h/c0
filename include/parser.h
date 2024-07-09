@@ -22,26 +22,28 @@ typedef struct ParserState {
     bool is_first;
 } ParserState;
 
-Parser *parser_alloc(Lexer *lexer);
-void parser_free(Parser *parser);
+extern Parser *parser;
 
-Expr *parser_id(Parser *parser);
-Expr *parser_f(Parser *parser);
-Expr *parser_t(Parser *parser);
-Expr *parser_e(Parser *parser);
+void parser_init();
+void parser_deinit();
 
-Expr *parser_bf(Parser *parser);
-Expr *parser_bt(Parser *parser);
-Expr *parser_be(Parser *parser);
+Expr *parser_id();
+Expr *parser_f();
+Expr *parser_t();
+Expr *parser_e();
 
-Stmt *parser_stmt(Parser *parser);
+Expr *parser_bf();
+Expr *parser_bt();
+Expr *parser_be();
 
-Type *parser_ty(Parser *parser, bool should_exist);
-bool parser_tyd(Parser *parser);
-bool parser_tyds(Parser *parser);
+Stmt *parser_stmt();
 
-bool parser_global_vad(Parser *parser);
+Type *parser_ty(bool should_exist);
+bool parser_tyd();
+bool parser_tyds();
 
-Function *parser_fud(Parser *parser);
+bool parser_global_vad();
+
+Function *parser_fud();
 
 #endif

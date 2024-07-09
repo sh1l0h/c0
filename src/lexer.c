@@ -1,26 +1,28 @@
 #include "../include/lexer.h"
 
-Lexer *lexer_alloc(char *input_path)
-{
-    Lexer *result = malloc(sizeof *result);
+Lexer *lexer;
 
-    result->input_stream = fopen(input_path, "r");
-    if (result->input_stream == NULL) {
+bool lexer_init(char *input_path)
+{
+    lexer = malloc(sizeof *lexer);
+
+    lexer->input_stream = fopen(input_path, "r");
+    if (lexer->input_stream == NULL) {
         log_fatal("%s: %s.", input_path, strerror(errno));
 
-        free(result);
-        return NULL;
+        free(lexer);
+        return false;
     }
 
-    result->input_path = input_path;
-    result->line = result->column = 1;
+    lexer->input_path = input_path;
+    lexer->line = 1;
+    lexer->column = 1;
+    lexer->error = false;
 
-    result->error = false;
-
-    return result;
+    return true;
 }
 
-void lexer_free(Lexer *lexer)
+void lexer_deinit()
 {
     if (lexer->input_stream != NULL)
         fclose(lexer->input_stream);
@@ -28,9 +30,9 @@ void lexer_free(Lexer *lexer)
     free(lexer);
 }
 
-static Token *lexer_num(Lexer *lexer, Location *loc)
+static Token *lexer_num(Location *loc)
 {
-    size_t allocated_chars = 8;
+    size_t allocated_chars = 64;
     size_t lexeme_len = 0;
     char *lexeme = malloc(allocated_chars * sizeof *lexeme);
     char curr;
@@ -40,35 +42,34 @@ static Token *lexer_num(Lexer *lexer, Location *loc)
         lexeme[lexeme_len++] = curr;
 
         if (lexeme_len == allocated_chars) {
-            char *tmp = realloc(lexeme, (allocated_chars *= 2) * sizeof *lexeme);
+            allocated_chars *= 2;
+            char *tmp = realloc(lexeme, allocated_chars * sizeof *lexeme);
             if (tmp == NULL)
                 return NULL;
             lexeme = tmp;
         }
     }
 
-    if (curr == 'u') {
-        lexeme = realloc(lexeme, (lexeme_len + 2) * sizeof *lexeme);
-        lexeme[lexeme_len] = 'u';
-        lexeme[lexeme_len + 1] = '\0';
-        lexer->column++;
-    }
+    if (curr != 'u') 
+        ungetc(curr, lexer->input_stream);
     else {
         lexeme = realloc(lexeme, (lexeme_len + 1) * sizeof *lexeme);
-        lexeme[lexeme_len] = '\0';
-
-        ungetc(curr, lexer->input_stream);
+        lexeme[lexeme_len++] = 'u';
+        lexer->column++;
     }
 
     loc->column_end = lexer->column - 1;
 
-    Token *result = token_alloc_with_lexeme(TT_C, loc, lexeme);
+    char *str = str_get(lexeme, lexeme_len);
+    free(lexeme);
 
-    result->value_as.integer = strtol(lexeme, NULL, 10);
+    Token *result = token_create_with_lexeme(TT_C, loc, str);
+    result->value_as.integer = strtol(str, NULL, 10);
+
     return result;
 }
 
-static Token *lexer_word(Lexer *lexer, Location *loc)
+static Token *lexer_word(Location *loc)
 {
     size_t allocated_chars = 8;
     size_t lexeme_len = 0;
@@ -92,39 +93,45 @@ static Token *lexer_word(Lexer *lexer, Location *loc)
     ungetc(curr, lexer->input_stream);
 
     loc->column_end = lexer->column - 1;
-
     lexeme = realloc(lexeme, (lexeme_len + 1) * sizeof *lexeme);
     lexeme[lexeme_len] = '\0';
 
     Token *result;
     if (!strcmp(lexeme, "true")) {
-        result = token_alloc_with_lexeme(TT_BC, loc, lexeme);
+        result = token_create_with_lexeme(TT_BC, loc, token_strings[TT_TRUE]);
         result->value_as.boolean = true;
+        free(lexeme);
         return result;
     }
 
     if (!strcmp(lexeme, "false")) {
-        result = token_alloc_with_lexeme(TT_BC, loc, lexeme);
+        result = token_create_with_lexeme(TT_BC, loc, token_strings[TT_FALSE]);
         result->value_as.boolean = false;
+        free(lexeme);
         return result;
     }
 
     if (!strcmp(lexeme, "null")) {
-        result = token_alloc_with_lexeme(TT_C, loc, lexeme);
+        result = token_create_with_lexeme(TT_C, loc, token_strings[TT_NULL]);
         result->is_null = true;
+        free(lexeme);
         return result;
     }
 
-    for (int i = 0; i < TT_KEYWORD_COUNT - TT_CHAR; i++) {
-        if (!strcmp(lexeme, token_type_strings[TT_CHAR + i])) {
-            return token_alloc_with_lexeme(TT_CHAR + i, loc, lexeme);
+    for (int i = TT_CHAR; i < TT_KEYWORD_COUNT; i++) {
+        if (!strcmp(lexeme, token_strings[i])) {
+            free(lexeme);
+            return token_create_with_lexeme(i, loc, token_strings[i]);
         }
     }
 
-    return token_alloc_with_lexeme(TT_NA, loc, lexeme);
+    char *s = str_get_null_term(lexeme);
+    free(lexeme);
+
+    return token_create_with_lexeme(TT_NA, loc, s);
 }
 
-static bool lexer_match(Lexer *lexer, const int c)
+static bool lexer_match(const int c)
 {
     int curr = getc(lexer->input_stream);
 
@@ -138,7 +145,7 @@ static bool lexer_match(Lexer *lexer, const int c)
     return true;
 }
 
-Token *lexer_next(Lexer *lexer)
+Token *lexer_next()
 {
     bool quit;
     Location loc;
@@ -157,13 +164,13 @@ Token *lexer_next(Lexer *lexer)
 
         if (isalpha(curr)) {
             ungetc(curr, lexer->input_stream);
-            result = lexer_word(lexer, &loc);
+            result = lexer_word(&loc);
             break;
         }
 
         if (isdigit(curr)) {
             ungetc(curr, lexer->input_stream);
-            result = lexer_num(lexer, &loc);
+            result = lexer_num(&loc);
             break;
         }
 
@@ -184,123 +191,121 @@ Token *lexer_next(Lexer *lexer)
         case EOF:
             loc.line--;
             loc.column_start = loc.column_end = last_column;
-            result = token_alloc(TT_EOF, &loc);
+            result = token_create(TT_EOF, &loc);
             break;
 
         case '&':
-            if (lexer_match(lexer, '&')) {
+            if (lexer_match('&')) {
                 loc.column_end++;
-                result = token_alloc(TT_LOGICAL_AND, &loc);
+                result = token_create(TT_LOGICAL_AND, &loc);
             }
             else
-                result = token_alloc(TT_AND, &loc);
+                result = token_create(TT_AND, &loc);
             break;
 
         case '!':
-            if (lexer_match(lexer, '=')) {
+            if (lexer_match('=')) {
                 loc.column_end++;
-                result = token_alloc(TT_NOT_EQUALS, &loc);
+                result = token_create(TT_NOT_EQUALS, &loc);
             }
             else
-                result = token_alloc(TT_NOT, &loc);
+                result = token_create(TT_NOT, &loc);
             break;
 
         case '(':
-            result = token_alloc(TT_LEFT_PAREN, &loc);
+            result = token_create(TT_LEFT_PAREN, &loc);
             break;
 
         case ')':
-            result = token_alloc(TT_RIGHT_PAREN, &loc);
+            result = token_create(TT_RIGHT_PAREN, &loc);
             break;
 
         case '*':
-            result = token_alloc(TT_STAR, &loc);
+            result = token_create(TT_STAR, &loc);
             break;
 
         case '+':
-            result = token_alloc(TT_PLUS, &loc);
+            result = token_create(TT_PLUS, &loc);
             break;
 
         case ',':
-            result = token_alloc(TT_COMMA, &loc);
+            result = token_create(TT_COMMA, &loc);
             break;
 
         case '-':
-            result = token_alloc(TT_MINUS, &loc);
+            result = token_create(TT_MINUS, &loc);
             break;
 
         case '.':
-            result = token_alloc(TT_DOT, &loc);
+            result = token_create(TT_DOT, &loc);
             break;
 
         case '/':
-            result = token_alloc(TT_SLASH, &loc);
+            result = token_create(TT_SLASH, &loc);
             break;
 
         case ';':
-            result = token_alloc(TT_SEMICOLON, &loc);
+            result = token_create(TT_SEMICOLON, &loc);
             break;
 
         case '>':
-            if (lexer_match(lexer, '=')) {
+            if (lexer_match('=')) {
                 loc.column_end++;
-                result = token_alloc(TT_GREATER_EQUALS, &loc);
+                result = token_create(TT_GREATER_EQUALS, &loc);
             }
             else
-                result = token_alloc(TT_GREATER, &loc);
+                result = token_create(TT_GREATER, &loc);
             break;
 
         case '=':
-            if (lexer_match(lexer, '=')) {
+            if (lexer_match('=')) {
                 loc.column_end++;
-                result = token_alloc(TT_LOGICAL_EQUALS, &loc);
+                result = token_create(TT_LOGICAL_EQUALS, &loc);
             }
             else 
-                result = token_alloc(TT_EQUALS, &loc);
+                result = token_create(TT_EQUALS, &loc);
             break;
 
         case '<':
-            if (lexer_match(lexer, '=')) {
+            if (lexer_match('=')) {
                 loc.column_end++;
-                result = token_alloc(TT_LESS_EQUALS, &loc);
+                result = token_create(TT_LESS_EQUALS, &loc);
             }
             else
-                result = token_alloc(TT_LESS, &loc);
+                result = token_create(TT_LESS, &loc);
             break;
 
         case '[':
-            result = token_alloc(TT_LEFT_BRACKET, &loc);
+            result = token_create(TT_LEFT_BRACKET, &loc);
             break;
 
         case ']':
-            result = token_alloc(TT_RIGHT_BRACKET, &loc);
+            result = token_create(TT_RIGHT_BRACKET, &loc);
             break;
 
         case '{':
-            result = token_alloc(TT_LEFT_BRACE, &loc);
+            result = token_create(TT_LEFT_BRACE, &loc);
             break;
 
         case '}':
-            result = token_alloc(TT_RIGHT_BRACE, &loc);
+            result = token_create(TT_RIGHT_BRACE, &loc);
             break;
 
         case '|':
-            if (!lexer_match(lexer, '|')) {
+            if (!lexer_match('|')) {
                 log_error_with_loc(&loc, "did you mean \"||\"?");
-                log_info("treated \"|\" as \"||\" and continuing...");
                 lexer->error = true;
             }
             loc.column_end++;
-            result = token_alloc(TT_LOGICAL_OR, &loc);
+            result = token_create(TT_LOGICAL_OR, &loc);
             break;
 
         case '@':
-            result = token_alloc(TT_AT, &loc);
+            result = token_create(TT_AT, &loc);
             break;
 
         default:
             log_error_with_loc(&loc, "unexpected character \"%c\".", curr);
-            log_info("skipped the character and continuing...");
             quit = false;
             lexer->error = true;
         }

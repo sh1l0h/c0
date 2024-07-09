@@ -1,4 +1,5 @@
 #include "../include/type.h"
+#include "../include/token.h"
 
 #define TYPE_TABLE_SIZE 128 // Always power of 2
 
@@ -56,10 +57,10 @@ void type_init()
     // TODO: Change this for a specific architecture in runtime
     type_sizes = type_sizes_x86;
 
-    TYPE_PRIM_INIT(type_int, str_dup("int"), TO_INT);
-    TYPE_PRIM_INIT(type_bool, str_dup("bool"), TO_BOOL);
-    TYPE_PRIM_INIT(type_char, str_dup("char"), TO_CHAR);
-    TYPE_PRIM_INIT(type_uint, str_dup("uint"), TO_UINT);
+    TYPE_PRIM_INIT(type_int, token_strings[TT_INT], TO_INT);
+    TYPE_PRIM_INIT(type_bool, token_strings[TT_BOOL], TO_BOOL);
+    TYPE_PRIM_INIT(type_char, token_strings[TT_CHAR], TO_CHAR);
+    TYPE_PRIM_INIT(type_uint, token_strings[TT_UINT], TO_UINT);
 }
 
 void type_deinit()
@@ -68,7 +69,6 @@ void type_deinit()
         Type *curr = type_table[i];
         while (curr != NULL) {
             Type *next = curr->next; 
-            free(curr->name);
             for (size_t j = 0; j < curr->fields_count; j++) 
                 free(curr->fields[j].name);
             free(curr);
@@ -90,7 +90,7 @@ Type *type_get(char *name)
 {
     size_t index = str_hash(name) & (TYPE_TABLE_SIZE - 1); 
     for (Type *curr = type_table[index]; curr != NULL; curr = curr->next) {
-        if (!strcmp(curr->name, name))
+        if (curr->name == name)
             return curr;
     }
 

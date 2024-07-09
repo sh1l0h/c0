@@ -15,9 +15,12 @@ typedef enum SymScope {
 typedef struct Symbol Symbol;
 typedef struct SymTable SymTable;
 
+typedef struct Function Function;
+
 struct Symbol {
     char *name;
     Type *type;
+    Function *function;
     SymScope scope;
     Location loc;
 
@@ -30,8 +33,15 @@ struct SymTable {
 };
 
 extern SymTable *global_syms;
+extern SymTable *function_syms;
 
-Symbol *symbol_create(char *name, Type *type, SymScope scope, Location *loc_src);
+Symbol *symbol_create(char *name, 
+                      Type *type, 
+                      SymScope scope, 
+                      Location *loc_src);
+Symbol *function_symbol_create(char *name, 
+                               Function *function, 
+                               Location *loc_src);
 
 void symtable_init();
 void symtable_deinit();
@@ -39,7 +49,7 @@ void symtable_deinit();
 SymTable *symtable_create(SymTable *prev);
 void symtable_destroy(SymTable *table);
 
-void symtable_add(SymTable *table, Symbol *sym);
+bool symtable_add(SymTable *table, Symbol *sym);
 Symbol *symtable_get(SymTable *table, char *name);
 
 #endif

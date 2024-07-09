@@ -11,15 +11,15 @@ int main(int argc, char **argv)
     type_init();
     symtable_init();
 
-    Lexer *lexer = lexer_alloc(argv[1]);
-    Parser *parser = parser_alloc(lexer);
+    lexer_init(argv[1]);
+    parser_init();
 
     Function *f = parser_fud(parser);
 
     if (f != NULL)
         function_free(f);
 
-    parser_free(parser);
+    parser_deinit();
     symtable_deinit();
     type_deinit();
 

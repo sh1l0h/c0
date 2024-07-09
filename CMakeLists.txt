@@ -11,7 +11,7 @@ add_executable(${PROJECT_NAME}
     src/data_structures/cyclic_queue.c
     src/type.c
     src/symbol_table.c
-    src/utils.c
+    src/str.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -g)

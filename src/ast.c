@@ -1,5 +1,6 @@
 #include <string.h>
 #include "../include/ast.h"
+#include "../include/symbol_table.h"
 
 static Expr *expr_alloc(ExprType type)
 {
@@ -41,7 +42,7 @@ Expr *expr_access(Token *na, Expr *left)
 {
     Expr *result = expr_alloc(ET_ACCESS);
     result->as.access.left = left;
-    result->as.access.na = str_dup(na->lexeme);
+    result->as.access.na = na->lexeme;
 
     result->loc.file_path = left->loc.file_path;
     result->loc.line = left->loc.line;
@@ -102,7 +103,7 @@ Expr *expr_null(Token *c)
 Expr *expr_na(Token *na)
 {
     Expr *result = expr_alloc(ET_NA);
-    result->as.na = str_dup(na->lexeme);
+    result->as.na = na->lexeme;
     result->loc = na->loc;
 
     return result;
@@ -131,7 +132,6 @@ void expr_free(Expr *e)
 
     case ET_ACCESS:
         expr_free(e->as.access.left);
-        free(e->as.access.na);
         break;
 
     case ET_ARR_ACCESS:
@@ -139,10 +139,6 @@ void expr_free(Expr *e)
         expr_free(e->as.arr_access.left);
         break;
     
-    case ET_NA:
-        free(e->as.na);
-        break;
-
     default:
         break;
     }
@@ -207,7 +203,7 @@ Stmt *stmt_funcall(Expr *left, Token *na, Expr **args, size_t end_column)
     Stmt *result = malloc(sizeof *result);
     result->type = ST_FUNCALL;
     result->as.funcall.left = left;
-    result->as.funcall.na = str_dup(na->lexeme);
+    result->as.funcall.na = na->lexeme;
     result->as.funcall.args = args;
 
     result->loc.line = left->loc.line;
@@ -223,7 +219,7 @@ Stmt *stmt_new(Expr *left, Token *na, size_t end_column)
     Stmt *result = malloc(sizeof *result);
     result->type = ST_NEW;
     result->as.new_stmt.left = left;
-    result->as.new_stmt.na = str_dup(na->lexeme);
+    result->as.new_stmt.na = na->lexeme;
 
     result->loc.line = left->loc.line;
     result->loc.file_path = left->loc.file_path;
@@ -285,13 +281,11 @@ void stmt_free(Stmt *stmt)
 
     case ST_FUNCALL:
         expr_free(stmt->as.funcall.left); 
-        free(stmt->as.funcall.na);
         exprs_free(stmt->as.funcall.args);
         break;
 
     case ST_NEW:
         expr_free(stmt->as.new_stmt.left);
-        free(stmt->as.new_stmt.na);
         break;
 
     case ST_RETURN:
@@ -306,20 +300,28 @@ void stmt_free_wrapper(void *stmt)
     stmt_free(stmt); 
 }
 
-Function *function_create(char *name, SymTable *table, 
-                          Stmt **stmts, Stmt *return_stmt)
+Function *function_create(char *name, Type **arg_types, 
+                          size_t arg_count, SymTable *table, 
+                          Stmt **stmts, Type *return_type, 
+                          Stmt *return_stmt)
 {
     Function *result = malloc(sizeof *result);
     result->name = name;
+    result->arg_types = arg_types;
+    result->arg_count = arg_count;
     result->table = table;
     result->stmts = stmts;
+    result->return_type = return_type;
     result->return_stmt = return_stmt;
+
+    //Symbol *funsym = function_symbol_create(name, result, NULL);
+
     return result;
 }
 
 void function_free(Function *fun)
 {
-    free(fun->name);
+    free(fun->arg_types);
     symtable_destroy(fun->table);
     if (fun->stmts != NULL)
         stmts_free(fun->stmts);

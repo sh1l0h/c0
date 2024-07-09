@@ -6,12 +6,9 @@
 // DO NOT CHANGE THE ORDER!
 typedef enum TokenType {
     TT_EOF = 0,
-
-    TT_NA,
-
-    TT_C,
-    TT_CC,
-    TT_BC,
+    TT_TRUE,
+    TT_FALSE,
+    TT_NULL,
 
     TT_AND,
     TT_NOT,
@@ -50,8 +47,13 @@ typedef enum TokenType {
     TT_TYPEDEF,
     TT_WHILE,
     TT_NEW,
-    TT_KEYWORD_COUNT
+    TT_KEYWORD_COUNT,
     
+    TT_NA,
+    TT_C,
+    TT_CC,
+    TT_BC
+
 } TokenType;
 
 typedef union TokenValue {
@@ -69,13 +71,11 @@ typedef struct Token {
     TokenValue value_as;
 } Token;
 
-extern const char *token_type_strings[];
+extern char *token_strings[];
 
-Token *token_alloc(TokenType type, Location *loc_src);
-Token *token_alloc_with_lexeme(TokenType type, Location *loc_src, char *lexeme);
+Token *token_create(TokenType type, Location *loc_src);
+Token *token_create_with_lexeme(TokenType type, Location *loc_src, char *lexeme);
 
-void token_free(Token *token);
-
-const char *token_to_string(Token *t);
+void token_destroy(Token *token);
 
 #endif

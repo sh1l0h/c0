@@ -11,9 +11,11 @@ typedef struct Lexer {
     bool error;
 } Lexer;
 
-Lexer *lexer_alloc(char *input_path);
-void lexer_free(Lexer *lexer);
+extern Lexer *lexer;
 
-Token *lexer_next(Lexer *lexer);
+bool lexer_init(char *input_path);
+void lexer_deinit();
+
+Token *lexer_next();
 
 #endif
