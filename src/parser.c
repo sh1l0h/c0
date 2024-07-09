@@ -18,6 +18,7 @@ void parser_init()
     parser->lexer = lexer;
     parser->error = false;
     parser->is_tracking = false;
+    parser->oldest_state = 0;
     parser->curr_token = 0;
     cyclic_queue_create(&parser->tokens, sizeof(Token *), 8);
 
@@ -87,26 +88,25 @@ static Token *parser_expect(TokenType type)
     return curr;
 }
 
-static ParserState *parser_state()
+static size_t parser_state()
 {
-    ParserState *result = malloc(sizeof *result);
-    result->start_index = parser->curr_token;
-    result->is_first = !parser->is_tracking;
-    parser->is_tracking = true;
-    return result;
-}
-
-static void parser_set_state(ParserState *state)
-{
-    parser->curr_token = state->start_index;
-}
-
-static void parser_drop_state(ParserState *state)
-{
-    if (!state->is_first) {
-        free(state);
-        return;
+    if (!parser->is_tracking) {
+        parser->oldest_state = parser->curr_token;
+        parser->is_tracking = true;
     }
+
+    return parser->curr_token;
+}
+
+static void parser_set_state(size_t state)
+{
+    parser->curr_token = state;
+}
+
+static void parser_drop_state(size_t state)
+{
+    if (!parser->is_tracking || state != parser->oldest_state)
+        return;
 
     while (parser->curr_token > PARSER_LOOK_AHEAD) {
         Token **first = cyclic_queue_offset(&parser->tokens, 0);
@@ -116,7 +116,6 @@ static void parser_drop_state(ParserState *state)
     }
 
     parser->is_tracking = false;
-    free(state);
 }
 
 static TokenType parser_panic(size_t types_count, ...)
@@ -363,7 +362,7 @@ Expr *parser_bf()
     case TT_LEFT_PAREN:
         {
             parser_unget_token();
-            ParserState *state = parser_state();
+            size_t state = parser_state();
 
             Expr *e = parser_e();
             if (e != NULL) {
@@ -400,7 +399,7 @@ Expr *parser_bf()
     case TT_NA:
         {
             parser_unget_token();
-            ParserState *state = parser_state();
+            size_t state = parser_state();
 
             Expr *id = parser_id();
             switch (parser_get_token()->type) {
@@ -487,7 +486,7 @@ static Expr *parser_cc_be_e()
         return expr_cc(curr);
 
     parser_unget_token();
-    ParserState *state = parser_state();
+    size_t state = parser_state();
     Expr *result = parser_e();
     if (result != NULL) {
         switch (parser_get_token()->type) {

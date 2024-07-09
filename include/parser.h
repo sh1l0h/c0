@@ -13,14 +13,10 @@ typedef struct Parser {
     bool error;
 
     bool is_tracking;
+    size_t oldest_state;
     size_t curr_token;
     CyclicQueue tokens;
 } Parser;
-
-typedef struct ParserState {
-    size_t start_index;
-    bool is_first;
-} ParserState;
 
 extern Parser *parser;
 
