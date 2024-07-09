@@ -14,9 +14,10 @@ char *str_get(char *str, size_t len)
         curr = curr->next;
     }
 
-    size_t len_in_bytes = len * sizeof *str;
+    size_t len_in_bytes = (len + 1) * sizeof *str;
     char *s = malloc(len_in_bytes);
     memcpy(s, str, len_in_bytes);
+    s[len] = '\0';
 
     curr = malloc(sizeof *curr);
     curr->str = s;
