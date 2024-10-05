@@ -75,7 +75,7 @@ static Token *parser_expect(TokenType type)
 {
     Token *curr = parser_get_token();
 
-    if (curr->type != type) {
+    if (!token_is_type(curr, type)) {
         parser_log_error(&curr->loc,
                          "expected \"%s\", but got \"%s\".",
                          token_strings[type],
@@ -134,7 +134,7 @@ static TokenType parser_panic(size_t types_count, ...)
         Token *curr = parser_get_token();
 
         for (size_t i = 0; i < types_count; i++){
-            if (curr->type == types[i])
+            if (token_is_type(curr, types[i]))
                 return types[i];
         }
 
@@ -157,16 +157,12 @@ Expr *parser_id()
         case TT_LEFT_BRACKET:
             {
                 Expr *index = parser_e();
-                if (index == NULL) {
-                    expr_free(e);
-                    return NULL;
-                }
+                if (index == NULL)
+                    goto clean_e;
 
                 Token *r_bracket = parser_expect(TT_RIGHT_BRACKET);
-                if (r_bracket == NULL) {
-                    expr_free(e);
-                    return NULL;
-                }
+                if (r_bracket == NULL)
+                    goto clean_e;
 
                 e = expr_arr_access(e, index, r_bracket->loc.column_end);
             }
@@ -180,10 +176,8 @@ Expr *parser_id()
         case TT_DOT:
             {
                 Token *na = parser_expect(TT_NA);
-                if (na == NULL) {
-                    expr_free(e);
-                    return NULL; 
-                }
+                if (na == NULL)
+                    goto clean_e;
 
                 e = expr_access(na, e);
             }
@@ -193,11 +187,14 @@ Expr *parser_id()
             quit = true;
             break;
         }
-
     }
     parser_unget_token();
 
     return e;
+
+clean_e:
+    expr_free(e);
+    return NULL; 
 }
 
 Expr *parser_f()
@@ -258,8 +255,8 @@ Expr *parser_t()
         return NULL;
 
     Token *curr = parser_get_token();
-    while ((curr->type == TT_STAR ||
-            curr->type == TT_SLASH)) {
+    while ((token_is_type(curr, TT_STAR) ||
+            token_is_type(curr, TT_SLASH))) {
         TokenType type = curr->type;
 
         Expr *f = parser_f();
@@ -283,8 +280,8 @@ Expr *parser_e()
         return NULL;
 
     Token *curr = parser_get_token();
-    while ((curr->type == TT_PLUS ||
-            curr->type == TT_MINUS)) {
+    while ((token_is_type(curr, TT_PLUS) ||
+            token_is_type(curr, TT_MINUS))) {
         TokenType type = curr->type;
 
         Expr *t = parser_t();
@@ -301,29 +298,28 @@ Expr *parser_e()
     return e;
 }
 
-Expr *parser_atom()
+static Expr *parser_atom(Expr *left_e)
 {
-    Token *token = parser_get_token();
-    if (token->type == TT_BC) 
-        return expr_bc(token);
+    if (left_e == NULL) {
+        Token *token = parser_get_token();
+        if (token->type == TT_BC) 
+            return expr_bc(token);
 
-    parser_unget_token();
+        parser_unget_token();
 
-    Expr *left_e = parser_e();
-    if (left_e == NULL)
-        return NULL;
+        left_e = parser_e();
+        if (left_e == NULL)
+            return NULL;
+    }
 
     Token *op = parser_get_token();
-    switch (op->type) {
-    case TT_GREATER:
-    case TT_GREATER_EQUALS:
-    case TT_LESS:
-    case TT_LESS_EQUALS:
-    case TT_LOGICAL_EQUALS:
-    case TT_NOT_EQUALS:
-        break;
+    if ((!token_is_type(op, TT_GREATER)        &&
+         !token_is_type(op, TT_GREATER_EQUALS) &&
+         !token_is_type(op, TT_LESS)           &&
+         !token_is_type(op, TT_LESS_EQUALS)    &&
+         !token_is_type(op, TT_LOGICAL_EQUALS) &&
+         !token_is_type(op, TT_NOT_EQUALS))) {
 
-    default:
         expr_free(left_e);
         parser_unget_token();
         parser_log_error(&op->loc,
@@ -366,9 +362,8 @@ Expr *parser_bf()
 
             Expr *e = parser_e();
             if (e != NULL) {
-                parser_set_state(state);
                 parser_drop_state(state);
-                return parser_atom();
+                return parser_atom(e);
             }
 
             parser_set_state(state);
@@ -378,13 +373,10 @@ Expr *parser_bf()
             Location left_loc = curr->loc;
 
             Expr *be = parser_be();
-            if (be == NULL) {
-                expr_free(e);
+            if (be == NULL) 
                 return NULL;
-            }
 
             if (parser_expect(TT_RIGHT_PAREN) == NULL) {
-                expr_free(e);
                 expr_free(be);
                 parser_log_info(&left_loc,
                                 "right prarenphesis is here:");
@@ -416,7 +408,7 @@ Expr *parser_bf()
                 parser_set_state(state);
                 parser_drop_state(state);
                 expr_free(id);
-                return parser_atom();
+                return parser_atom(NULL);
 
             default:
                 parser_drop_state(state);
@@ -427,7 +419,7 @@ Expr *parser_bf()
 
     default:
         parser_unget_token();
-        return parser_atom();
+        return parser_atom(NULL);
     }
 }
 
@@ -966,17 +958,17 @@ bool parser_global_vad()
 static bool parser_is_type(Token *na)
 {
     switch (na->type) {
-        case TT_BOOL:
-        case TT_INT:
-        case TT_CHAR:
-        case TT_UINT:
-            return true;
+    case TT_BOOL:
+    case TT_INT:
+    case TT_CHAR:
+    case TT_UINT:
+        return true;
 
-        case TT_NA:
-            return type_get(na->lexeme) != NULL;
+    case TT_NA:
+        return type_get(na->lexeme) != NULL;
 
-        default:
-            return false;
+    default:
+        return false;
     }
 }
 

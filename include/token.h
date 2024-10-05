@@ -3,6 +3,8 @@
 
 #include "./utils.h"
 
+#define token_is_type(_tok, _t) ((_tok)->type == (_t))
+
 // DO NOT CHANGE THE ORDER!
 typedef enum TokenType {
     TT_EOF = 0,
